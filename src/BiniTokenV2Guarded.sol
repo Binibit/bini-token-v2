@@ -48,6 +48,7 @@ contract BiniTokenV2Guarded is
         TransferMode mode;
         mapping(address => AccountClass) accountClass;
         mapping(address => bool) approvedOperator;
+        address genesisSafe; // recorded at init; activation gate reads it (prevents self-trapped genesis)
     }
 
     bytes32 private constant STORAGE_LOCATION =
@@ -62,8 +63,9 @@ contract BiniTokenV2Guarded is
     error TransferNotAllowed(address from, address to, address operator);
     error ClassBoundaryViolation(address account, AccountClass current, AccountClass target);
     error BootstrapRecipientNotApproved(address to);
+    error GenesisNotReady(address genesis, uint256 balance);
 
-    event GuardedModeActivated(address indexed executor, uint256 indexed blockNumber);
+    event GuardedModeActivated(address indexed executor, uint256 indexed blockNumber, uint256 genesisBalance);
     event AccountClassSet(address indexed account, AccountClass class);
     event OperatorSet(address indexed operator, bool approved);
     event AddressFrozen(address indexed account);
@@ -113,17 +115,33 @@ contract BiniTokenV2Guarded is
         _grantRole(BOOTSTRAP_OPERATOR_ROLE, genesisDistributionSafe);
 
         _s().mode = TransferMode.BOOTSTRAP;
+        _s().genesisSafe = genesisDistributionSafe;
         _mint(genesisDistributionSafe, MAX_SUPPLY);
     }
 
     // --- mode (one-way; NO OPEN) ---
+    /// @dev Activation gate closes the genesis self-trap: refuses to lock the perimeter while the genesis
+    ///      safe still holds BINI but is not itself inside the perimeter (would strand its remaining supply).
+    ///      Ready == genesis approved OR genesis emptied. The deploy runbook must ALSO assert every other
+    ///      required core account (treasury, migration vault, vesting, system contracts) is approved.
     function activateGuardedMode() external onlyRole(POLICY_MANAGER_ROLE) {
-        if (_s().mode == TransferMode.GUARDED) revert AlreadyGuarded();
-        _s().mode = TransferMode.GUARDED;
-        emit GuardedModeActivated(msg.sender, block.number);
+        GuardedStorage storage $ = _s();
+        if ($.mode == TransferMode.GUARDED) revert AlreadyGuarded();
+        address g = $.genesisSafe;
+        uint256 gb = balanceOf(g);
+        if ($.accountClass[g] == AccountClass.NONE && gb != 0) revert GenesisNotReady(g, gb);
+        $.mode = TransferMode.GUARDED;
+        emit GuardedModeActivated(msg.sender, block.number, gb);
     }
 
     function transferMode() external view returns (TransferMode) { return _s().mode; }
+    function genesisSafe() external view returns (address) { return _s().genesisSafe; }
+    /// @notice Minimal on-chain readiness check for activation (genesis leg only; runbook checks the rest).
+    function activationReady() external view returns (bool) {
+        GuardedStorage storage $ = _s();
+        address g = $.genesisSafe;
+        return $.accountClass[g] != AccountClass.NONE || balanceOf(g) == 0;
+    }
     function accountClassOf(address a) external view returns (AccountClass) { return _s().accountClass[a]; }
     function isApprovedOperator(address a) external view returns (bool) { return _s().approvedOperator[a]; }
     function isApproved(address a) external view returns (bool) { return _s().accountClass[a] != AccountClass.NONE; }

@@ -133,8 +133,39 @@ contract GuardedUnitTest is Test {
         assertEq(t.balanceOf(bob), 1 ether);
     }
 
+    // ---------- P0: genesis activation self-trap gate ----------
+    function test_Activate_Blocked_WhenGenesisHoldsAndUnapproved() public {
+        // genesis holds full supply, not classified -> activation must refuse (else 1B stranded)
+        assertFalse(t.activationReady());
+        vm.expectRevert(abi.encodeWithSelector(G.GenesisNotReady.selector, genesis, 1_000_000_000 ether));
+        vm.prank(timelock);
+        t.activateGuardedMode();
+    }
+    function test_Activate_Ok_WhenGenesisApproved() public {
+        vm.prank(timelock);
+        t.setSystemAccounts(_a(genesis), true);
+        assertTrue(t.activationReady());
+        vm.prank(timelock);
+        t.activateGuardedMode();
+        assertEq(uint256(t.transferMode()), uint256(G.TransferMode.GUARDED));
+    }
+    function test_Activate_Ok_WhenGenesisEmptied() public {
+        // onboard alice, move ALL supply out of genesis, then activate with genesis unclassified
+        vm.prank(ops);
+        t.setParticipants(_a(alice), true);
+        vm.prank(genesis);
+        t.transfer(alice, 1_000_000_000 ether);
+        assertEq(t.balanceOf(genesis), 0);
+        assertTrue(t.activationReady());
+        vm.prank(timelock);
+        t.activateGuardedMode();
+        assertEq(uint256(t.transferMode()), uint256(G.TransferMode.GUARDED));
+    }
+
     // ---------- mode one-way / supply ----------
     function test_Mode_OneWay_NoOpen() public {
+        vm.prank(timelock);
+        t.setSystemAccounts(_a(genesis), true); // genesis ready so activation is allowed
         vm.prank(timelock);
         t.activateGuardedMode();
         vm.expectRevert(G.AlreadyGuarded.selector);
