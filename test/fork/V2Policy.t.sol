@@ -39,7 +39,7 @@ contract V2PolicyForkTest is Test {
     address internal alice = address(0xA11CE); // ordinary holder
 
     function setUp() public {
-        vm.createSelectFork("https://ethereum-rpc.publicnode.com", 25_588_357);
+        vm.createSelectFork("https://ethereum-rpc.publicnode.com"); // latest block (archive-gated for pinned)
         BiniTokenV2 impl = new BiniTokenV2();
         bini = BiniTokenV2(
             address(
