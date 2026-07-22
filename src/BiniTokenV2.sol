@@ -70,7 +70,7 @@ contract BiniTokenV2 is
      * @param emergencyPauserSafe     holds PAUSER (fast circuit-breaker).
      * @param governanceUnpauserSafe  holds UNPAUSER (distinct authority).
      * @param genesisDistributionSafe receives the full 1B supply and holds BOOTSTRAP_OPERATOR.
-     * @param defaultAdminDelay       delay (seconds) for the 2-step default-admin handover. Accepts any
+     * @param adminTransferDelay      delay (seconds) for the 2-step default-admin handover. Accepts any
      *                                value (incl. 0) by design; the DEPLOYMENT SCRIPT MUST assert the
      *                                exact governance-approved value and record it in the manifest.
      */
@@ -79,7 +79,7 @@ contract BiniTokenV2 is
         address emergencyPauserSafe,
         address governanceUnpauserSafe,
         address genesisDistributionSafe,
-        uint48 defaultAdminDelay
+        uint48 adminTransferDelay
     ) external initializer {
         if (
             adminTimelock == address(0) || emergencyPauserSafe == address(0)
@@ -90,7 +90,7 @@ contract BiniTokenV2 is
         __ERC20Permit_init("Binibit");
         __ERC20Pausable_init();
         __ERC20Capped_init(MAX_SUPPLY);
-        __AccessControlDefaultAdminRules_init(defaultAdminDelay, adminTimelock);
+        __AccessControlDefaultAdminRules_init(adminTransferDelay, adminTimelock);
         // UUPSUpgradeable (canonical @openzeppelin/contracts, OZ 5.x) has no initializer — nothing to init.
 
         _grantRole(UPGRADER_ROLE, adminTimelock);

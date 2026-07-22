@@ -1,0 +1,21 @@
+{
+  "prohibitedFunctionNames": [
+    "blacklist",
+    "burn",
+    "burnfrom",
+    "confiscate",
+    "forcetransfer",
+    "freeze",
+    "mint",
+    "rescue",
+    "rescueerc20",
+    "seize",
+    "setblacklist",
+    "setcap",
+    "setfee",
+    "settax",
+    "sweep",
+    "unblacklist"
+  ],
+  "note": "CI gate: no contract function name (exact, pre-`(`) may be in this set; whole-name match, NOT substring"
+}
