@@ -13,9 +13,7 @@ contract MockUSD is ERC20 {
     constructor(address to) ERC20("MockUSD", "mUSD") { _mint(to, 1_000_000 ether); }
 }
 
-/// MODEL C decisive PoC — permanently guarded BINI vs REAL mainnet Uniswap V2.
-/// Proves the win over Model A: in GUARDED mode (permanent, no OPEN), real BINI can be seeded into an
-/// APPROVED official pair but can NEVER be moved into an UNKNOWN pair — forever, not just pre-launch.
+/// MODEL C decisive PoC — permanently guarded BINI vs REAL mainnet Uniswap V2 (ECON-2 role model).
 contract GuardedV2ForkTest is Test {
     address constant V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
@@ -23,7 +21,8 @@ contract GuardedV2ForkTest is Test {
     MockUSD internal usd;
     MockUSD internal usd2;
     address internal timelock = address(0x700);
-    address internal pauser = address(0x701);
+    address internal ops = address(0x704);
+    address internal security = address(0x701);
     address internal unpauser = address(0x702);
     address internal genesis = address(0x703);
     address internal alice = address(0xA11CE);
@@ -34,25 +33,23 @@ contract GuardedV2ForkTest is Test {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com"); // latest block (archive-gated for pinned)
         G impl = new G();
         t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days))
+            G.initialize, (timelock, ops, security, unpauser, genesis, uint48(3 days))
         ))));
         usd = new MockUSD(genesis);
         usd2 = new MockUSD(genesis);
 
-        // perimeter: genesis=SYSTEM, alice=PARTICIPANT
-        vm.startPrank(genesis);
-        t.setSystemAccounts(_a(genesis), true);
-        t.setParticipants(_a(alice), true);
-        vm.stopPrank();
+        vm.prank(timelock);
+        t.setSystemAccounts(_a(genesis), true); // genesis = SYSTEM
+        vm.prank(ops);
+        t.setParticipants(_a(alice), true); // alice = PARTICIPANT
     }
 
-    // official pair approved as MARKET_ENDPOINT -> real BINI can be seeded (guarded mode)
     function test_Guarded_Official_Pair_Seedable() public {
         address official = IV2Factory(V2_FACTORY).createPair(address(t), address(usd));
         vm.prank(timelock);
-        t.setMarketEndpoints(_a(official), true);
-        vm.prank(genesis);
-        t.setOperators(_a(genesis), true); // seeding a MARKET_ENDPOINT requires an approved operator
+        t.setMarketEndpoints(_a(official), true); // ENDPOINT_MANAGER = Timelock
+        vm.prank(timelock);
+        t.setOperators(_a(genesis), true); // feeding a MARKET_ENDPOINT requires an operator
         vm.prank(timelock);
         t.activateGuardedMode();
 
@@ -64,18 +61,15 @@ contract GuardedV2ForkTest is Test {
         assertEq(t.balanceOf(official), 100_000 ether);
     }
 
-    // UNKNOWN pair (not approved) can NEVER receive real BINI in guarded mode — permanently
     function test_Guarded_Unknown_Pair_PermanentlyBlocked() public {
         vm.prank(timelock);
         t.activateGuardedMode();
-        // give alice some BINI first (genesis SYSTEM -> alice PARTICIPANT ok)
         vm.prank(genesis);
-        t.transfer(alice, 50_000 ether);
-
-        address rogue = IV2Factory(V2_FACTORY).createPair(address(t), address(usd2)); // NOT a MARKET_ENDPOINT
+        t.transfer(alice, 50_000 ether); // genesis(SYSTEM) -> alice(PARTICIPANT): ok
+        address rogue = IV2Factory(V2_FACTORY).createPair(address(t), address(usd2)); // NOT approved
         vm.expectRevert(abi.encodeWithSelector(G.TransferNotAllowed.selector, alice, rogue, alice));
         vm.prank(alice);
-        t.transfer(rogue, 1_000 ether); // blocked — to=rogue is class NONE, and stays blocked forever
+        t.transfer(rogue, 1_000 ether); // blocked forever — rogue is class NONE
         assertEq(t.balanceOf(rogue), 0);
     }
 }

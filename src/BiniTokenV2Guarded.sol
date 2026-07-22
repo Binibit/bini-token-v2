@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-// MODEL C REFERENCE — permanently guarded BINI (BOOTSTRAP -> GUARDED, no OPEN).
-// Locally compiled + tested + V2-fork-proven; NOT an authorized release (Gate A unsigned; V3/V4/audit owed).
-// Real BINI can move only inside a governed on-chain perimeter (approved accounts + operators). This does
-// NOT ban fake tokens, empty pools, OTC, or CEX-internal markets — only unauthorized on-chain movement of
-// REAL BINI. See docs/bini-v2/market-protection/mc1/.
+// MODEL C reference (ECON-2 hardened). Permanently guarded BINI: BOOTSTRAP -> GUARDED, no OPEN.
+// DISCLOSURE: no confiscation / forced-transfer / admin-burn / balance-rewrite. BUT it HAS governed
+// transfer-eligibility and an emergency address FREEZE (emergencyRevoke -> class NONE): a frozen address
+// keeps its balance but cannot send or receive until a governed manager re-approves it. This must be
+// disclosed to holders, CEX, custody, MMs, auditors, and legal.
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
@@ -32,10 +32,15 @@ contract BiniTokenV2Guarded is
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
-    bytes32 public constant POLICY_MANAGER_ROLE = keccak256("POLICY_MANAGER_ROLE");       // mode transition
-    bytes32 public constant ENDPOINT_MANAGER_ROLE = keccak256("ENDPOINT_MANAGER_ROLE");   // approve market endpoints (Timelock)
-    bytes32 public constant PARTICIPANT_MANAGER_ROLE = keccak256("PARTICIPANT_MANAGER_ROLE"); // onboarding (Ops Safe)
-    bytes32 public constant EMERGENCY_REVOKER_ROLE = keccak256("EMERGENCY_REVOKER_ROLE"); // Security Safe
+    bytes32 public constant POLICY_MANAGER_ROLE = keccak256("POLICY_MANAGER_ROLE");
+    // Per-class managers — each may ONLY approve/revoke its own class (boundary-enforced). Sensitive
+    // classes (SYSTEM/CUSTODY/MARKET_ENDPOINT/OPERATOR) belong to the Timelock; PARTICIPANT to Ops.
+    bytes32 public constant PARTICIPANT_MANAGER_ROLE = keccak256("PARTICIPANT_MANAGER_ROLE");
+    bytes32 public constant SYSTEM_MANAGER_ROLE = keccak256("SYSTEM_MANAGER_ROLE");
+    bytes32 public constant CUSTODY_MANAGER_ROLE = keccak256("CUSTODY_MANAGER_ROLE");
+    bytes32 public constant ENDPOINT_MANAGER_ROLE = keccak256("ENDPOINT_MANAGER_ROLE");
+    bytes32 public constant OPERATOR_MANAGER_ROLE = keccak256("OPERATOR_MANAGER_ROLE");
+    bytes32 public constant EMERGENCY_REVOKER_ROLE = keccak256("EMERGENCY_REVOKER_ROLE");
     bytes32 public constant BOOTSTRAP_OPERATOR_ROLE = keccak256("BOOTSTRAP_OPERATOR_ROLE");
 
     /// @custom:storage-location erc7201:binibit.storage.BiniTokenV2Guarded
@@ -55,23 +60,35 @@ contract BiniTokenV2Guarded is
     error ZeroAddress();
     error AlreadyGuarded();
     error TransferNotAllowed(address from, address to, address operator);
+    error ClassBoundaryViolation(address account, AccountClass current, AccountClass target);
+    error BootstrapRecipientNotApproved(address to);
 
     event GuardedModeActivated(address indexed executor, uint256 indexed blockNumber);
     event AccountClassSet(address indexed account, AccountClass class);
     event OperatorSet(address indexed operator, bool approved);
+    event AddressFrozen(address indexed account);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() { _disableInitializers(); }
 
+    /**
+     * @param adminTimelock          DEFAULT_ADMIN + UPGRADER + POLICY + SYSTEM/CUSTODY/ENDPOINT/OPERATOR managers.
+     * @param operationsSafe         PARTICIPANT_MANAGER only (retail onboarding).
+     * @param securitySafe           PAUSER + EMERGENCY_REVOKER.
+     * @param governanceUnpauserSafe UNPAUSER.
+     * @param genesisDistributionSafe receives 1B, BOOTSTRAP_OPERATOR only. Emptied + role revoked at go-live.
+     * @param adminTransferDelay     2-step admin handover delay; deploy script MUST assert the approved value.
+     */
     function initialize(
         address adminTimelock,
-        address emergencyPauserSafe,
+        address operationsSafe,
+        address securitySafe,
         address governanceUnpauserSafe,
         address genesisDistributionSafe,
         uint48 adminTransferDelay
     ) external initializer {
         if (
-            adminTimelock == address(0) || emergencyPauserSafe == address(0)
+            adminTimelock == address(0) || operationsSafe == address(0) || securitySafe == address(0)
                 || governanceUnpauserSafe == address(0) || genesisDistributionSafe == address(0)
         ) revert ZeroAddress();
 
@@ -81,20 +98,25 @@ contract BiniTokenV2Guarded is
         __ERC20Capped_init(MAX_SUPPLY);
         __AccessControlDefaultAdminRules_init(adminTransferDelay, adminTimelock);
 
+        // Sensitive authorities -> Timelock.
         _grantRole(UPGRADER_ROLE, adminTimelock);
         _grantRole(POLICY_MANAGER_ROLE, adminTimelock);
+        _grantRole(SYSTEM_MANAGER_ROLE, adminTimelock);
+        _grantRole(CUSTODY_MANAGER_ROLE, adminTimelock);
         _grantRole(ENDPOINT_MANAGER_ROLE, adminTimelock);
-        _grantRole(PAUSER_ROLE, emergencyPauserSafe);
+        _grantRole(OPERATOR_MANAGER_ROLE, adminTimelock);
+        // Operational / emergency.
+        _grantRole(PARTICIPANT_MANAGER_ROLE, operationsSafe);
+        _grantRole(PAUSER_ROLE, securitySafe);
+        _grantRole(EMERGENCY_REVOKER_ROLE, securitySafe);
         _grantRole(UNPAUSER_ROLE, governanceUnpauserSafe);
-        _grantRole(EMERGENCY_REVOKER_ROLE, emergencyPauserSafe);
-        _grantRole(PARTICIPANT_MANAGER_ROLE, genesisDistributionSafe); // Ops onboarding; re-pointed at go-live
         _grantRole(BOOTSTRAP_OPERATOR_ROLE, genesisDistributionSafe);
 
         _s().mode = TransferMode.BOOTSTRAP;
         _mint(genesisDistributionSafe, MAX_SUPPLY);
     }
 
-    // --- mode (one-way BOOTSTRAP -> GUARDED; NO OPEN) ---
+    // --- mode (one-way; NO OPEN) ---
     function activateGuardedMode() external onlyRole(POLICY_MANAGER_ROLE) {
         if (_s().mode == TransferMode.GUARDED) revert AlreadyGuarded();
         _s().mode = TransferMode.GUARDED;
@@ -106,41 +128,51 @@ contract BiniTokenV2Guarded is
     function isApprovedOperator(address a) external view returns (bool) { return _s().approvedOperator[a]; }
     function isApproved(address a) external view returns (bool) { return _s().accountClass[a] != AccountClass.NONE; }
 
-    // --- perimeter management ---
-    function _setClass(address[] calldata accts, AccountClass class) internal {
+    // --- per-class perimeter management (boundary-enforced) ---
+    /// @dev A manager may only move an address between NONE and its OWN `managed` class; it can NEVER
+    ///      reclassify or revoke an address currently held in a different class. Closes the P0.1 bypass
+    ///      where PARTICIPANT_MANAGER could approve a pool as SYSTEM/CUSTODY.
+    function _manageClass(address[] calldata accts, AccountClass managed, bool approved) internal {
+        GuardedStorage storage $ = _s();
         for (uint256 i; i < accts.length; ++i) {
             if (accts[i] == address(0)) revert ZeroAddress();
-            _s().accountClass[accts[i]] = class;
-            emit AccountClassSet(accts[i], class);
+            AccountClass cur = $.accountClass[accts[i]];
+            if (cur != AccountClass.NONE && cur != managed) revert ClassBoundaryViolation(accts[i], cur, managed);
+            AccountClass next = approved ? managed : AccountClass.NONE;
+            $.accountClass[accts[i]] = next;
+            emit AccountClassSet(accts[i], next);
         }
     }
 
-    function setParticipants(address[] calldata a, bool approved) external onlyRole(PARTICIPANT_MANAGER_ROLE) {
-        _setClass(a, approved ? AccountClass.PARTICIPANT : AccountClass.NONE);
+    function setParticipants(address[] calldata a, bool ok) external onlyRole(PARTICIPANT_MANAGER_ROLE) {
+        _manageClass(a, AccountClass.PARTICIPANT, ok);
     }
-    function setSystemAccounts(address[] calldata a, bool approved) external onlyRole(PARTICIPANT_MANAGER_ROLE) {
-        _setClass(a, approved ? AccountClass.SYSTEM : AccountClass.NONE);
+    function setSystemAccounts(address[] calldata a, bool ok) external onlyRole(SYSTEM_MANAGER_ROLE) {
+        _manageClass(a, AccountClass.SYSTEM, ok);
     }
-    function setCustodyAccounts(address[] calldata a, bool approved) external onlyRole(PARTICIPANT_MANAGER_ROLE) {
-        _setClass(a, approved ? AccountClass.CUSTODY : AccountClass.NONE);
+    function setCustodyAccounts(address[] calldata a, bool ok) external onlyRole(CUSTODY_MANAGER_ROLE) {
+        _manageClass(a, AccountClass.CUSTODY, ok);
     }
-    /// @dev Approving a MARKET_ENDPOINT (a pool/pair/gateway) is the highest-sensitivity action → Timelock.
-    function setMarketEndpoints(address[] calldata a, bool approved) external onlyRole(ENDPOINT_MANAGER_ROLE) {
-        _setClass(a, approved ? AccountClass.MARKET_ENDPOINT : AccountClass.NONE);
+    function setMarketEndpoints(address[] calldata a, bool ok) external onlyRole(ENDPOINT_MANAGER_ROLE) {
+        _manageClass(a, AccountClass.MARKET_ENDPOINT, ok);
     }
-    function setOperators(address[] calldata a, bool approved) external onlyRole(PARTICIPANT_MANAGER_ROLE) {
+    function setOperators(address[] calldata a, bool ok) external onlyRole(OPERATOR_MANAGER_ROLE) {
         for (uint256 i; i < a.length; ++i) {
             if (a[i] == address(0)) revert ZeroAddress();
-            _s().approvedOperator[a[i]] = approved;
-            emit OperatorSet(a[i], approved);
+            _s().approvedOperator[a[i]] = ok;
+            emit OperatorSet(a[i], ok);
         }
     }
-    /// @notice Fast, Security-Safe-held revocation (revoke-fast); sets class NONE + removes operator.
+
+    /// @notice Emergency FREEZE (revoke-fast, Security Safe): sets class NONE + removes operator from ANY
+    ///         class. Balance is UNCHANGED. Restore is via the appropriate normal manager. This is a
+    ///         governed transfer freeze — disclosed, not a confiscation.
     function emergencyRevoke(address[] calldata a) external onlyRole(EMERGENCY_REVOKER_ROLE) {
+        GuardedStorage storage $ = _s();
         for (uint256 i; i < a.length; ++i) {
-            _s().accountClass[a[i]] = AccountClass.NONE;
-            _s().approvedOperator[a[i]] = false;
-            emit AccountClassSet(a[i], AccountClass.NONE);
+            $.accountClass[a[i]] = AccountClass.NONE;
+            $.approvedOperator[a[i]] = false;
+            emit AddressFrozen(a[i]);
         }
     }
 
@@ -154,21 +186,18 @@ contract BiniTokenV2Guarded is
         override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20CappedUpgradeable)
     {
         _requireNotPaused();
-        // Mint (from==0) is exempt (only in initialize). Everything else obeys the mode policy.
         if (from != address(0)) {
             GuardedStorage storage $ = _s();
             if ($.mode == TransferMode.BOOTSTRAP) {
+                // Onboarding-before-distribution: bootstrap operator may only send to ALREADY-approved
+                // recipients (prevents trapped balances after GUARDED). Mint (from==0) is exempt above.
                 if (!hasRole(BOOTSTRAP_OPERATOR_ROLE, from)) revert TransferNotAllowed(from, to, msg.sender);
+                if ($.accountClass[to] == AccountClass.NONE) revert BootstrapRecipientNotApproved(to);
             } else {
-                // GUARDED (permanent): both endpoints must be approved, AND:
-                //  - feeding a MARKET_ENDPOINT (a pool / the V4 PoolManager / a gateway target) requires an
-                //    approved OPERATOR (router/gateway) as msg.sender — a plain participant CANNOT send
-                //    real BINI directly into a pool or the PoolManager. This is the V4 lever: it blocks
-                //    direct user->PoolManager settlement, so a user can never create a BINI balance inside
-                //    PoolManager and thus can never mint a BINI ERC-6909 claim to shuttle between PoolIds.
-                //  - any other transfer: direct (msg.sender==from) or via an approved operator.
                 bool bothApproved =
                     $.accountClass[from] != AccountClass.NONE && $.accountClass[to] != AccountClass.NONE;
+                // Feeding a MARKET_ENDPOINT (pool / V4 PoolManager) requires an approved OPERATOR (the V4
+                // lever: blocks direct user->PoolManager, closing the ERC-6909 claims entry).
                 bool senderOk = ($.accountClass[to] == AccountClass.MARKET_ENDPOINT)
                     ? $.approvedOperator[msg.sender]
                     : (msg.sender == from || $.approvedOperator[msg.sender]);
