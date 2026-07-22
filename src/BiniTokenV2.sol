@@ -149,7 +149,7 @@ contract BiniTokenV2 is
     ///      constrained OFF-CHAIN by the Timelock delay, an independent canceller, a release policy
     ///      that rejects upgrades adding mint/cap-change/blacklist/forced-transfer/tax/permanent-DEX,
     ///      independent review, and external audit — not by the EVM.
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {
+    function _authorizeUpgrade(address newImplementation) internal view override onlyRole(UPGRADER_ROLE) {
         if (newImplementation == address(0)) revert ZeroAddress();
     }
 }
