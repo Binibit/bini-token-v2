@@ -160,11 +160,19 @@ contract BiniTokenV2Guarded is
             if ($.mode == TransferMode.BOOTSTRAP) {
                 if (!hasRole(BOOTSTRAP_OPERATOR_ROLE, from)) revert TransferNotAllowed(from, to, msg.sender);
             } else {
-                // GUARDED (permanent): both endpoints approved AND (direct or approved operator).
-                bool ok = $.accountClass[from] != AccountClass.NONE
-                    && $.accountClass[to] != AccountClass.NONE
-                    && (msg.sender == from || $.approvedOperator[msg.sender]);
-                if (!ok) revert TransferNotAllowed(from, to, msg.sender);
+                // GUARDED (permanent): both endpoints must be approved, AND:
+                //  - feeding a MARKET_ENDPOINT (a pool / the V4 PoolManager / a gateway target) requires an
+                //    approved OPERATOR (router/gateway) as msg.sender — a plain participant CANNOT send
+                //    real BINI directly into a pool or the PoolManager. This is the V4 lever: it blocks
+                //    direct user->PoolManager settlement, so a user can never create a BINI balance inside
+                //    PoolManager and thus can never mint a BINI ERC-6909 claim to shuttle between PoolIds.
+                //  - any other transfer: direct (msg.sender==from) or via an approved operator.
+                bool bothApproved =
+                    $.accountClass[from] != AccountClass.NONE && $.accountClass[to] != AccountClass.NONE;
+                bool senderOk = ($.accountClass[to] == AccountClass.MARKET_ENDPOINT)
+                    ? $.approvedOperator[msg.sender]
+                    : (msg.sender == from || $.approvedOperator[msg.sender]);
+                if (!(bothApproved && senderOk)) revert TransferNotAllowed(from, to, msg.sender);
             }
         }
         super._update(from, to, value);

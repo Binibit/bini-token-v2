@@ -51,11 +51,13 @@ contract GuardedV2ForkTest is Test {
         address official = IV2Factory(V2_FACTORY).createPair(address(t), address(usd));
         vm.prank(timelock);
         t.setMarketEndpoints(_a(official), true);
+        vm.prank(genesis);
+        t.setOperators(_a(genesis), true); // seeding a MARKET_ENDPOINT requires an approved operator
         vm.prank(timelock);
         t.activateGuardedMode();
 
         vm.startPrank(genesis);
-        t.transfer(official, 100_000 ether); // genesis(SYSTEM) -> official(MARKET_ENDPOINT): allowed
+        t.transfer(official, 100_000 ether); // genesis(operator) -> official(MARKET_ENDPOINT): allowed
         usd.transfer(official, 100_000 ether);
         vm.stopPrank();
         IV2Pair(official).mint(genesis);
