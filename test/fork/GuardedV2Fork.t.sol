@@ -33,7 +33,7 @@ contract GuardedV2ForkTest is Test {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com"); // latest block (archive-gated for pinned)
         G impl = new G();
         t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, unpauser, genesis, uint48(3 days))
+            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
         ))));
         usd = new MockUSD(genesis);
         usd2 = new MockUSD(genesis);

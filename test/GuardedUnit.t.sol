@@ -21,7 +21,7 @@ contract GuardedUnitTest is Test {
     function setUp() public {
         G impl = new G();
         t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, unpauser, genesis, uint48(3 days))
+            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
         ))));
     }
 
@@ -185,5 +185,21 @@ contract GuardedUnitTest is Test {
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(alice);
         t.transfer(bob, 1 ether);
+    }
+
+    // ---------- U2 unpause topology: Security pauses, only Timelock unpauses ----------
+    function test_Unpause_U2_OnlyTimelock() public {
+        vm.prank(security);
+        t.pause();
+        // Security holds PAUSER but NOT UNPAUSER -> cannot unpause
+        vm.expectRevert(abi.encodeWithSelector(
+            IAccessControl.AccessControlUnauthorizedAccount.selector, security, t.UNPAUSER_ROLE()
+        ));
+        vm.prank(security);
+        t.unpause();
+        // Timelock (U2 unpauser, reached via the Timelock delay off-chain) can unpause
+        vm.prank(timelock);
+        t.unpause();
+        assertFalse(t.paused());
     }
 }

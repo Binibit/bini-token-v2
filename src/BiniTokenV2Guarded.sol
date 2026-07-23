@@ -74,10 +74,12 @@ contract BiniTokenV2Guarded is
     constructor() { _disableInitializers(); }
 
     /**
-     * @param adminTimelock          DEFAULT_ADMIN + UPGRADER + POLICY + SYSTEM/CUSTODY/ENDPOINT/OPERATOR managers.
+     * @param adminTimelock          DEFAULT_ADMIN + UPGRADER + POLICY + SYSTEM/CUSTODY/ENDPOINT/OPERATOR managers
+     *                               + UNPAUSER (governance model U2: pause is instant via Security Safe, but
+     *                               UNPAUSE is scheduled through the Timelock delay; the Governance Safe acts as
+     *                               an off-chain Timelock proposer, not an on-chain direct unpauser).
      * @param operationsSafe         PARTICIPANT_MANAGER only (retail onboarding).
      * @param securitySafe           PAUSER + EMERGENCY_REVOKER.
-     * @param governanceUnpauserSafe UNPAUSER.
      * @param genesisDistributionSafe receives 1B, BOOTSTRAP_OPERATOR only. Emptied + role revoked at go-live.
      * @param adminTransferDelay     2-step admin handover delay; deploy script MUST assert the approved value.
      */
@@ -85,13 +87,12 @@ contract BiniTokenV2Guarded is
         address adminTimelock,
         address operationsSafe,
         address securitySafe,
-        address governanceUnpauserSafe,
         address genesisDistributionSafe,
         uint48 adminTransferDelay
     ) external initializer {
         if (
             adminTimelock == address(0) || operationsSafe == address(0) || securitySafe == address(0)
-                || governanceUnpauserSafe == address(0) || genesisDistributionSafe == address(0)
+                || genesisDistributionSafe == address(0)
         ) revert ZeroAddress();
 
         __ERC20_init("Binibit", "BINI");
@@ -111,7 +112,7 @@ contract BiniTokenV2Guarded is
         _grantRole(PARTICIPANT_MANAGER_ROLE, operationsSafe);
         _grantRole(PAUSER_ROLE, securitySafe);
         _grantRole(EMERGENCY_REVOKER_ROLE, securitySafe);
-        _grantRole(UNPAUSER_ROLE, governanceUnpauserSafe);
+        _grantRole(UNPAUSER_ROLE, adminTimelock); // U2: unpause goes through the Timelock (delayed, cancellable)
         _grantRole(BOOTSTRAP_OPERATOR_ROLE, genesisDistributionSafe);
 
         _s().mode = TransferMode.BOOTSTRAP;
