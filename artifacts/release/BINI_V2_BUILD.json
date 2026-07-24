@@ -1,0 +1,16 @@
+{
+  "contract": "BiniTokenV2",
+  "source": "src/BiniTokenV2.sol",
+  "solidity": "0.8.24",
+  "foundry": "1.5.1",
+  "evmVersion": "cancun",
+  "optimizer": {
+    "enabled": true,
+    "runs": 200
+  },
+  "bytecodeHashMode": "none",
+  "creationBytecodeKeccak256": "0x510c774c63f50fd2aee5ab3e924d8302959e5aefd036af53cb3d6d04be9588ed",
+  "runtimeBytecodeKeccak256": "0x2e2db4f6806706f4448a71bc4dfbb9d13e22b38f139ae0d7f10e25498e986d47",
+  "abiKeccak256": "0xb98aee915d4bda694b81a45355c782a7698154f65a185f92812e1b7b1d19995c",
+  "note": "Regenerate after any source, compiler, dependency or Foundry configuration change."
+}

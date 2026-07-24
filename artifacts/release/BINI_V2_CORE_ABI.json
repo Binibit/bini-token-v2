@@ -6,32 +6,6 @@
   },
   {
     "type": "function",
-    "name": "BOOTSTRAP_OPERATOR_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "CUSTODY_MANAGER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "DEFAULT_ADMIN_ROLE",
     "inputs": [],
     "outputs": [
@@ -58,20 +32,7 @@
   },
   {
     "type": "function",
-    "name": "EMERGENCY_REVOKER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "ENDPOINT_MANAGER_ROLE",
+    "name": "MARKET_MANAGER_ROLE",
     "inputs": [],
     "outputs": [
       {
@@ -97,59 +58,7 @@
   },
   {
     "type": "function",
-    "name": "OPERATOR_MANAGER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PARTICIPANT_MANAGER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "PAUSER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "POLICY_MANAGER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "SYSTEM_MANAGER_ROLE",
     "inputs": [],
     "outputs": [
       {
@@ -205,45 +114,6 @@
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "accountClassOf",
-    "inputs": [
-      {
-        "name": "a",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "enum BiniTokenV2Guarded.AccountClass"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "activateGuardedMode",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "activationReady",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -412,6 +282,25 @@
   },
   {
     "type": "function",
+    "name": "dexFactoryKind",
+    "inputs": [
+      {
+        "name": "factory",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum BiniTokenV2.FactoryKind"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "eip712Domain",
     "inputs": [],
     "outputs": [
@@ -449,32 +338,6 @@
         "name": "extensions",
         "type": "uint256[]",
         "internalType": "uint256[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "emergencyRevoke",
-    "inputs": [
-      {
-        "name": "a",
-        "type": "address[]",
-        "internalType": "address[]"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "genesisSafe",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -550,12 +413,7 @@
         "internalType": "address"
       },
       {
-        "name": "operationsSafe",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "securitySafe",
+        "name": "emergencyPauserSafe",
         "type": "address",
         "internalType": "address"
       },
@@ -575,10 +433,10 @@
   },
   {
     "type": "function",
-    "name": "isApproved",
+    "name": "isBlockedDexDestination",
     "inputs": [
       {
-        "name": "a",
+        "name": "account",
         "type": "address",
         "internalType": "address"
       }
@@ -594,10 +452,10 @@
   },
   {
     "type": "function",
-    "name": "isApprovedOperator",
+    "name": "isMarketInfrastructure",
     "inputs": [
       {
-        "name": "a",
+        "name": "account",
         "type": "address",
         "internalType": "address"
       }
@@ -607,6 +465,51 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isRecognizedDexPool",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "marketOpen",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "marketState",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum BiniTokenV2.MarketState"
       }
     ],
     "stateMutability": "view"
@@ -642,6 +545,13 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "openMarket",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -813,17 +723,17 @@
   },
   {
     "type": "function",
-    "name": "setCustodyAccounts",
+    "name": "setDexFactory",
     "inputs": [
       {
-        "name": "a",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "factory",
+        "type": "address",
+        "internalType": "address"
       },
       {
-        "name": "ok",
-        "type": "bool",
-        "internalType": "bool"
+        "name": "kind",
+        "type": "uint8",
+        "internalType": "enum BiniTokenV2.FactoryKind"
       }
     ],
     "outputs": [],
@@ -831,69 +741,15 @@
   },
   {
     "type": "function",
-    "name": "setMarketEndpoints",
+    "name": "setMarketInfrastructure",
     "inputs": [
       {
-        "name": "a",
+        "name": "accounts",
         "type": "address[]",
         "internalType": "address[]"
       },
       {
-        "name": "ok",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setOperators",
-    "inputs": [
-      {
-        "name": "a",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "ok",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setParticipants",
-    "inputs": [
-      {
-        "name": "a",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "ok",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setSystemAccounts",
-    "inputs": [
-      {
-        "name": "a",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "ok",
+        "name": "blocked",
         "type": "bool",
         "internalType": "bool"
       }
@@ -1001,19 +857,6 @@
   },
   {
     "type": "function",
-    "name": "transferMode",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "enum BiniTokenV2Guarded.TransferMode"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "unpause",
     "inputs": [],
     "outputs": [],
@@ -1036,38 +879,6 @@
     ],
     "outputs": [],
     "stateMutability": "payable"
-  },
-  {
-    "type": "event",
-    "name": "AccountClassSet",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "class",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "enum BiniTokenV2Guarded.AccountClass"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "AddressFrozen",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
   },
   {
     "type": "event",
@@ -1146,33 +957,27 @@
   },
   {
     "type": "event",
-    "name": "EIP712DomainChanged",
-    "inputs": [],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "GuardedModeActivated",
+    "name": "DexFactorySet",
     "inputs": [
       {
-        "name": "executor",
+        "name": "factory",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "blockNumber",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "genesisBalance",
-        "type": "uint256",
+        "name": "kind",
+        "type": "uint8",
         "indexed": false,
-        "internalType": "uint256"
+        "internalType": "enum BiniTokenV2.FactoryKind"
       }
     ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EIP712DomainChanged",
+    "inputs": [],
     "anonymous": false
   },
   {
@@ -1190,19 +995,38 @@
   },
   {
     "type": "event",
-    "name": "OperatorSet",
+    "name": "MarketInfrastructureSet",
     "inputs": [
       {
-        "name": "operator",
+        "name": "account",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "approved",
+        "name": "blocked",
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MarketOpened",
+    "inputs": [
+      {
+        "name": "executor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "blockNumber",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -1407,38 +1231,12 @@
   },
   {
     "type": "error",
-    "name": "AlreadyGuarded",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "BootstrapRecipientNotApproved",
+    "name": "DexMarketClosed",
     "inputs": [
       {
-        "name": "to",
+        "name": "destination",
         "type": "address",
         "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ClassBoundaryViolation",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "current",
-        "type": "uint8",
-        "internalType": "enum BiniTokenV2Guarded.AccountClass"
-      },
-      {
-        "name": "target",
-        "type": "uint8",
-        "internalType": "enum BiniTokenV2Guarded.AccountClass"
       }
     ]
   },
@@ -1642,22 +1440,6 @@
   },
   {
     "type": "error",
-    "name": "GenesisNotReady",
-    "inputs": [
-      {
-        "name": "genesis",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "balance",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "InvalidAccountNonce",
     "inputs": [
       {
@@ -1679,6 +1461,22 @@
   },
   {
     "type": "error",
+    "name": "MarketAlreadyOpen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotContract",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "NotInitializing",
     "inputs": []
   },
@@ -1695,27 +1493,6 @@
         "name": "value",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "TransferNotAllowed",
-    "inputs": [
-      {
-        "name": "from",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "to",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "operator",
-        "type": "address",
-        "internalType": "address"
       }
     ]
   },

@@ -1,0 +1,85 @@
+# Market Open Runbook
+
+This runbook is a release template. Every address and code hash must be ratified
+for Ethereum mainnet before execution.
+
+## 1. Deploy
+
+Deploy the implementation and atomically initialize the UUPS proxy using
+`script/DeployBiniTokenV2.s.sol`.
+
+Required values:
+
+- `ADMIN_TIMELOCK`;
+- `EMERGENCY_PAUSER_SAFE`;
+- `GENESIS_DISTRIBUTION_SAFE`;
+- `ADMIN_TRANSFER_DELAY`.
+
+Verify metadata, fixed supply, proxy implementation, ERC-7201 storage slot and
+all roles immediately after deployment.
+
+## 2. Configure PRE_MARKET
+
+Through scheduled Timelock operations:
+
+1. register the ratified V2 factories as `UNISWAP_V2`;
+2. register the ratified V3 factories as `UNISWAP_V3`;
+3. add V4 PoolManager, liquidity managers, routers and gateways that can receive
+   BINI as market infrastructure;
+4. record chain id, address, runtime code hash, proxy implementation and
+   governance transaction for each entry.
+
+Ethereum candidates used by the fork tests:
+
+| Component | Candidate address |
+| --- | --- |
+| Uniswap V2 Factory | `0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f` |
+| Uniswap V3 Factory | `0x1F98431c8aD98523631AE4a59f267346ea31F984` |
+| Uniswap V4 PoolManager | `0x000000000004444c5dc75cB358380D2e3dE08A90` |
+
+Candidate addresses are not automatically production-ratified.
+
+## 3. PRE_MARKET Verification
+
+Confirm on-chain:
+
+- wallet -> wallet succeeds;
+- wallet -> Safe succeeds;
+- wallet -> custody and vesting succeeds;
+- standard allowance + `transferFrom` succeeds;
+- transfer and `transferFrom` into every registered infrastructure address
+  revert with `DexMarketClosed`;
+- a new V2 pair from every registered V2 factory is recognized and blocked;
+- a new V3 pool from every registered V3 factory is recognized and blocked;
+- total supply remains `1,000,000,000 ether`;
+- token is not paused unless an incident is active.
+
+## 4. Schedule OPEN_MARKET
+
+Prepare exactly:
+
+```solidity
+BiniTokenV2.openMarket()
+```
+
+Publish the calldata, target proxy, salt, predecessor and Timelock ETA. Require
+independent sign-off that:
+
+- launch time and communications are approved;
+- DEX and liquidity operations are ready;
+- no active security incident exists;
+- proxy implementation and configuration match the reviewed release.
+
+## 5. Execute And Verify
+
+After the Timelock delay:
+
+1. execute `openMarket()`;
+2. verify `marketState() == OPEN_MARKET`;
+3. verify `marketOpen() == true`;
+4. verify transfers into former DEX destinations succeed;
+5. verify a second `openMarket()` reverts `MarketAlreadyOpen`;
+6. archive transaction hashes and emitted `MarketOpened` event.
+
+There is no rollback to `PRE_MARKET`. Emergency response uses the separate global
+pause, followed by a Timelock-controlled unpause.

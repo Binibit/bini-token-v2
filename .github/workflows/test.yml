@@ -36,5 +36,19 @@ jobs:
       - name: Run Forge build
         run: forge build --sizes
 
-      - name: Run Forge tests
-        run: forge test -vvv
+      - name: Run local tests
+        run: forge test --no-match-path "test/fork/*" -vvv
+
+      - name: Run mainnet-fork tests
+        run: forge test --match-path "test/fork/*" -vvv
+
+      - name: Validate JSON artifacts
+        run: >-
+          jq empty
+          artifacts/release/BINI_V2_BUILD.json
+          artifacts/release/BINI_V2_CORE_ABI.json
+          artifacts/release/BINI_V2_CORE_SELECTORS.json
+          artifacts/release/BINI_V2_CORE_STORAGE.json
+          config/governance-manifest.rehearsal.json
+          policy/allowed-selectors.json
+          policy/prohibited-selectors.json

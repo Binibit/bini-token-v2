@@ -1,57 +1,77 @@
 # BINI Token V2
 
-Hardened reference implementation of the permanently guarded BINI V2 token.
+Canonical Ethereum implementation candidate for Binibit (`BINI`).
+
+## Product Model
+
+`BINI` is freely transferable between users and system contracts from genesis.
+The only temporary restriction is the movement of real BINI into recognized
+DEX/AMM infrastructure:
+
+```text
+PRE_MARKET  -- Timelock: openMarket() -->  OPEN_MARKET
+```
+
+- `PRE_MARKET`: wallet, Safe, custody, vesting, rewards, migration and OTC
+  transfers use the standard ERC-20 flow. Transfers into configured DEX
+  infrastructure and recognized V2/V3 pools are blocked.
+- `OPEN_MARKET`: the DEX check is bypassed forever. BINI behaves as a standard
+  permissionless ERC-20, subject only to the independent emergency global pause.
+
+There is no participant allowlist, KYC, transfer tax, max-wallet rule, runtime
+mint, burn, confiscation, forced transfer or post-opening blacklist.
+
+## Fixed Properties
+
+- Name: `Binibit`
+- Symbol: `BINI`
+- Decimals: `18`
+- Supply: `1,000,000,000 BINI`, minted once during initialization
+- Upgrade model: UUPS, authorized by the governance Timelock
+- Emergency pause: Security Safe pauses; Timelock unpauses
+
+## Security Boundary
+
+The token automatically recognizes deployed V2/V3-style pools only when their
+factory has been registered by governance. V4 `PoolManager`, routers, liquidity
+managers and gateways are explicit infrastructure entries.
+
+An ERC-20 cannot reliably identify every unknown or future AMM. In particular,
+an undeployed CREATE2 pool address can be pre-funded while it has no code and is
+indistinguishable from an ordinary wallet address. The absolute universal
+requirement is therefore `BLOCKED`; this repository implements the narrow,
+no-user-allowlist compromise described in
+[`PRE_MARKET_DEX_POLICY.md`](docs/architecture/PRE_MARKET_DEX_POLICY.md).
 
 ## Status
 
-`MECHANICS_GREEN_RATIFICATIONS_REQUIRED`
+`IMPLEMENTATION_CANDIDATE_NOT_DEPLOY_AUTHORIZED`
 
-This repository is review and audit material. It is not an authorized production
-release and must not be deployed to Mainnet.
-
-- Fixed genesis supply: 1,000,000,000 BINI.
-- Permanent `BOOTSTRAP -> GUARDED` lifecycle; no `OPEN` mode.
-- Address classes and approved operators define the on-chain transfer perimeter.
-- Emergency freeze preserves balances and removes transfer eligibility.
-- Security can pause immediately; unpause and sensitive actions execute through
-  an OpenZeppelin `TimelockController`.
-- Uniswap V2 and V3 paths have fork-test coverage. V4 is deferred from launch.
-
-The current technical evidence reports 119 passing tests: 93 local and 26 mainnet
-fork tests. Business ratifications, reproducible build controls, independent
-review, and an external audit remain required before an ABI or release freeze.
-
-## Repository Layout
-
-- `src/BiniTokenV2Guarded.sol`: guarded-core reference.
-- `test/`: unit, invariant, governance, upgrade, and mainnet-fork tests.
-- `policy/`: allowed and prohibited selector policy.
-- `config/governance-manifest.rehearsal.json`: candidate governance values only.
-- `artifacts/release/`: generated ABI, method identifiers, and storage layout.
-- `docs/evidence/`: executed engineering evidence and status history.
-- `docs/runbooks/`: operational controls derived from the test evidence.
+The implementation and tests are ready for independent review. Mainnet
+deployment still requires ratified governance addresses, reproducible
+deployment evidence and an external audit.
 
 ## Build And Test
 
-Foundry 1.5.1 and Solidity 0.8.24 were used for the recorded rehearsal.
+Foundry `1.5.1` and Solidity `0.8.24` are pinned for the current candidate.
 
 ```sh
 git submodule update --init --recursive
-forge build
+forge fmt --check
+forge build --sizes
 forge test --no-match-path "test/fork/*"
 forge test --match-path "test/fork/*"
 ```
 
-Fork tests currently use `https://ethereum-rpc.publicnode.com` and may need to be
-rerun if the public endpoint is temporarily unavailable.
+The fork suite uses `https://ethereum-rpc.publicnode.com`.
 
-## Security Boundary
+## Repository Layout
 
-The token enforces a governed transfer perimeter. It does not prevent fake tokens,
-OTC activity, CEX-internal markets, synthetic markets, or malicious behavior by an
-already approved address. An approved operator is a global capability bounded by
-ERC-20 allowance and the destination perimeter.
-
-See
-[`11_ECON2_3_MECHANICS_EVIDENCE_AND_VERDICT.md`](docs/evidence/11_ECON2_3_MECHANICS_EVIDENCE_AND_VERDICT.md)
-for the current evidence-backed verdict.
+- `src/BiniTokenV2.sol`: canonical token implementation
+- `test/`: unit, invariant, governance, upgrade and mainnet-fork evidence
+- `script/DeployBiniTokenV2.s.sol`: environment-driven UUPS deployment
+- `config/governance-manifest.rehearsal.json`: non-production governance template
+- `docs/PRODUCT_REQUIREMENT.md`: product canon
+- `docs/architecture/PRE_MARKET_DEX_POLICY.md`: feasibility and threat boundary
+- `docs/runbooks/MARKET_OPEN.md`: configuration and one-way opening procedure
+- `artifacts/release/`: generated ABI, selectors and storage layout
