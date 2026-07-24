@@ -9,10 +9,18 @@ pragma solidity 0.8.24;
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20CappedUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20CappedUpgradeable.sol";
-import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {
+    ERC20PausableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {
+    ERC20CappedUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20CappedUpgradeable.sol";
+import {
+    AccessControlDefaultAdminRulesUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 
 /**
  * @title  BiniTokenV2
@@ -45,8 +53,7 @@ contract BiniTokenV2 is
     }
 
     // keccak256(abi.encode(uint256(keccak256("binibit.storage.BiniTokenV2")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant STORAGE_LOCATION =
-        0xb919b0c0062827d20ad4293e3018837a27a74d3431061c198bdaffa48b665b00;
+    bytes32 private constant STORAGE_LOCATION = 0xb919b0c0062827d20ad4293e3018837a27a74d3431061c198bdaffa48b665b00;
 
     function _s() private pure returns (BiniTokenV2Storage storage $) {
         assembly {
@@ -82,8 +89,8 @@ contract BiniTokenV2 is
         uint48 adminTransferDelay
     ) external initializer {
         if (
-            adminTimelock == address(0) || emergencyPauserSafe == address(0)
-                || governanceUnpauserSafe == address(0) || genesisDistributionSafe == address(0)
+            adminTimelock == address(0) || emergencyPauserSafe == address(0) || governanceUnpauserSafe == address(0)
+                || genesisDistributionSafe == address(0)
         ) revert ZeroAddress();
 
         __ERC20_init("Binibit", "BINI");

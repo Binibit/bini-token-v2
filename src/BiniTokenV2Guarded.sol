@@ -10,10 +10,18 @@ pragma solidity 0.8.24;
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20CappedUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20CappedUpgradeable.sol";
-import {AccessControlDefaultAdminRulesUpgradeable} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {
+    ERC20PausableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {
+    ERC20CappedUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20CappedUpgradeable.sol";
+import {
+    AccessControlDefaultAdminRulesUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 
 contract BiniTokenV2Guarded is
     Initializable,
@@ -26,8 +34,17 @@ contract BiniTokenV2Guarded is
 {
     uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
 
-    enum TransferMode { BOOTSTRAP, GUARDED }
-    enum AccountClass { NONE, PARTICIPANT, SYSTEM, CUSTODY, MARKET_ENDPOINT }
+    enum TransferMode {
+        BOOTSTRAP,
+        GUARDED
+    }
+    enum AccountClass {
+        NONE,
+        PARTICIPANT,
+        SYSTEM,
+        CUSTODY,
+        MARKET_ENDPOINT
+    }
 
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -51,8 +68,7 @@ contract BiniTokenV2Guarded is
         address genesisSafe; // recorded at init; activation gate reads it (prevents self-trapped genesis)
     }
 
-    bytes32 private constant STORAGE_LOCATION =
-        0x8f8334c80b8b39b92d35e01e80c0222e020c97fe2254163fdb7f364477b6f000;
+    bytes32 private constant STORAGE_LOCATION = 0x8f8334c80b8b39b92d35e01e80c0222e020c97fe2254163fdb7f364477b6f000;
 
     function _s() private pure returns (GuardedStorage storage $) {
         assembly { $.slot := STORAGE_LOCATION }
@@ -71,7 +87,9 @@ contract BiniTokenV2Guarded is
     event AddressFrozen(address indexed account);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     /**
      * @param adminTimelock          DEFAULT_ADMIN + UPGRADER + POLICY + SYSTEM/CUSTODY/ENDPOINT/OPERATOR managers
@@ -135,17 +153,32 @@ contract BiniTokenV2Guarded is
         emit GuardedModeActivated(msg.sender, block.number, gb);
     }
 
-    function transferMode() external view returns (TransferMode) { return _s().mode; }
-    function genesisSafe() external view returns (address) { return _s().genesisSafe; }
+    function transferMode() external view returns (TransferMode) {
+        return _s().mode;
+    }
+
+    function genesisSafe() external view returns (address) {
+        return _s().genesisSafe;
+    }
+
     /// @notice Minimal on-chain readiness check for activation (genesis leg only; runbook checks the rest).
     function activationReady() external view returns (bool) {
         GuardedStorage storage $ = _s();
         address g = $.genesisSafe;
         return $.accountClass[g] != AccountClass.NONE || balanceOf(g) == 0;
     }
-    function accountClassOf(address a) external view returns (AccountClass) { return _s().accountClass[a]; }
-    function isApprovedOperator(address a) external view returns (bool) { return _s().approvedOperator[a]; }
-    function isApproved(address a) external view returns (bool) { return _s().accountClass[a] != AccountClass.NONE; }
+
+    function accountClassOf(address a) external view returns (AccountClass) {
+        return _s().accountClass[a];
+    }
+
+    function isApprovedOperator(address a) external view returns (bool) {
+        return _s().approvedOperator[a];
+    }
+
+    function isApproved(address a) external view returns (bool) {
+        return _s().accountClass[a] != AccountClass.NONE;
+    }
 
     // --- per-class perimeter management (boundary-enforced) ---
     /// @dev A manager may only move an address between NONE and its OWN `managed` class; it can NEVER
@@ -166,15 +199,19 @@ contract BiniTokenV2Guarded is
     function setParticipants(address[] calldata a, bool ok) external onlyRole(PARTICIPANT_MANAGER_ROLE) {
         _manageClass(a, AccountClass.PARTICIPANT, ok);
     }
+
     function setSystemAccounts(address[] calldata a, bool ok) external onlyRole(SYSTEM_MANAGER_ROLE) {
         _manageClass(a, AccountClass.SYSTEM, ok);
     }
+
     function setCustodyAccounts(address[] calldata a, bool ok) external onlyRole(CUSTODY_MANAGER_ROLE) {
         _manageClass(a, AccountClass.CUSTODY, ok);
     }
+
     function setMarketEndpoints(address[] calldata a, bool ok) external onlyRole(ENDPOINT_MANAGER_ROLE) {
         _manageClass(a, AccountClass.MARKET_ENDPOINT, ok);
     }
+
     function setOperators(address[] calldata a, bool ok) external onlyRole(OPERATOR_MANAGER_ROLE) {
         for (uint256 i; i < a.length; ++i) {
             if (a[i] == address(0)) revert ZeroAddress();
@@ -196,8 +233,13 @@ contract BiniTokenV2Guarded is
     }
 
     // --- pause (split) ---
-    function pause() external onlyRole(PAUSER_ROLE) { _pause(); }
-    function unpause() external onlyRole(UNPAUSER_ROLE) { _unpause(); }
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(UNPAUSER_ROLE) {
+        _unpause();
+    }
 
     // --- transfer policy: pause > guard > cap ---
     function _update(address from, address to, uint256 value)
@@ -213,8 +255,7 @@ contract BiniTokenV2Guarded is
                 if (!hasRole(BOOTSTRAP_OPERATOR_ROLE, from)) revert TransferNotAllowed(from, to, msg.sender);
                 if ($.accountClass[to] == AccountClass.NONE) revert BootstrapRecipientNotApproved(to);
             } else {
-                bool bothApproved =
-                    $.accountClass[from] != AccountClass.NONE && $.accountClass[to] != AccountClass.NONE;
+                bool bothApproved = $.accountClass[from] != AccountClass.NONE && $.accountClass[to] != AccountClass.NONE;
                 // Feeding a MARKET_ENDPOINT (pool / V4 PoolManager) requires an approved OPERATOR (the V4
                 // lever: blocks direct user->PoolManager, closing the ERC-6909 claims entry).
                 bool senderOk = ($.accountClass[to] == AccountClass.MARKET_ENDPOINT)

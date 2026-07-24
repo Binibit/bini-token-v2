@@ -16,17 +16,17 @@ contract FreezeRecoveryTest is Test {
 
     // --- governance principals ---
     address internal timelock = address(0x700); // SYSTEM/CUSTODY/ENDPOINT/OPERATOR managers + POLICY + UNPAUSER
-    address internal ops = address(0x704);       // PARTICIPANT_MANAGER only
-    address internal security = address(0x701);  // PAUSER + EMERGENCY_REVOKER
-    address internal genesis = address(0x703);   // BOOTSTRAP_OPERATOR + full supply; also SYSTEM
+    address internal ops = address(0x704); // PARTICIPANT_MANAGER only
+    address internal security = address(0x701); // PAUSER + EMERGENCY_REVOKER
+    address internal genesis = address(0x703); // BOOTSTRAP_OPERATOR + full supply; also SYSTEM
 
     // --- perimeter population ---
-    address internal p1 = address(0xA11CE);      // PARTICIPANT
-    address internal p2 = address(0xB0B);        // PARTICIPANT
-    address internal sys1 = address(0x515709);   // SYSTEM (system-contract stand-in)
+    address internal p1 = address(0xA11CE); // PARTICIPANT
+    address internal p2 = address(0xB0B); // PARTICIPANT
+    address internal sys1 = address(0x515709); // SYSTEM (system-contract stand-in)
     address internal cust1 = address(0xC0570D1); // CUSTODY
     address internal endpoint = address(0xE9D0); // MARKET_ENDPOINT (pool / V4 PoolManager stand-in)
-    address internal op1 = address(0x0FE9A705);  // PARTICIPANT + approved OPERATOR
+    address internal op1 = address(0x0FE9A705); // PARTICIPANT + approved OPERATOR
 
     uint256 internal constant SEED = 1_000 ether;
     uint256 internal constant ENDPOINT_SEED = 500 ether;
@@ -54,9 +54,13 @@ contract FreezeRecoveryTest is Test {
     ///      can seed it, so classes are assigned first, then balances flow, then the mode is locked.
     function setUp() public {
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
 
         // 1) classify the perimeter (timelock owns sensitive classes; ops owns PARTICIPANT)
         vm.startPrank(timelock);

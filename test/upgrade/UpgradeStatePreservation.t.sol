@@ -14,14 +14,19 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 /// @dev Legit append-only upgrade: same storage layout, adds one pure view. Storage-compatible & benign.
 contract GoodV2 is G {
-    function version() external pure returns (uint256) { return 2; }
+    function version() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 /// @dev NOT a UUPS implementation — it has NO `proxiableUUID()`. The ERC1967/UUPS proxy MUST reject it
 ///      STRUCTURALLY (try IERC1822Proxiable(newImpl).proxiableUUID() fails -> ERC1967InvalidImplementation).
 contract NotUUPS {
     uint256 public foo;
-    function setFoo(uint256 v) external { foo = v; }
+
+    function setFoo(uint256 v) external {
+        foo = v;
+    }
 }
 
 /// @dev A structurally-valid-looking impl whose `proxiableUUID()` returns the WRONG slot. The UUPS rollback
@@ -29,7 +34,9 @@ contract NotUUPS {
 ///      UUPSUnsupportedProxiableUUID. STRUCTURAL reject. (Standalone: G's `proxiableUUID` is non-virtual and
 ///      cannot be overridden, which is itself the mechanism that makes this check reliable.)
 contract WrongUUID {
-    function proxiableUUID() external pure returns (bytes32) { return keccak256("wrong"); }
+    function proxiableUUID() external pure returns (bytes32) {
+        return keccak256("wrong");
+    }
 }
 
 /// @dev POLICY-PROHIBITED (technically possible) impl. It IS `BiniTokenV2Guarded` (so it is guaranteed
@@ -42,10 +49,11 @@ contract WrongUUID {
 ///      ledger (`_balances`, `_totalSupply`) DIRECTLY, minting past the cap. The proxy cannot stop this.
 contract EvilMintImpl is G {
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ERC20_STORAGE =
-        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+    bytes32 private constant ERC20_STORAGE = 0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
 
-    function version() external pure returns (uint256) { return 666; }
+    function version() external pure returns (uint256) {
+        return 666;
+    }
 
     function evilMint(address to, uint256 amt) external {
         // _balances is field 0 (slot = keccak256(key, base)); _totalSupply is field 2 (slot = base + 2).
@@ -64,8 +72,7 @@ contract EvilMintImpl is G {
 ///      disclosure header swears it can never do. Storage-compatible (IS G); `evilSeize` rewrites the ERC20
 ///      balances ledger directly, sidestepping the non-virtual guard hook.
 contract EvilSeizeImpl is G {
-    bytes32 private constant ERC20_STORAGE =
-        0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+    bytes32 private constant ERC20_STORAGE = 0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
 
     function evilSeize(address from, address to, uint256 amt) external {
         assembly {
@@ -121,12 +128,19 @@ contract UpgradeStatePreservationTest is Test {
     function setUp() public {
         p1 = vm.addr(P1_PK);
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
     }
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
 
     /// @dev Sign a real EIP-2612 permit so the ERC20Permit nonce genuinely advances 0 -> 1.
     function _permit(uint256 pk, address owner, address spndr, uint256 value, uint256 deadline) internal {
@@ -229,9 +243,7 @@ contract UpgradeStatePreservationTest is Test {
     function test_StructuralReject_NonUUPSImpl() public {
         NotUUPS bad = new NotUUPS();
         // proxiableUUID() call fails -> the proxy itself reverts ERC1967InvalidImplementation(newImpl).
-        vm.expectRevert(abi.encodeWithSelector(
-            ERC1967Utils.ERC1967InvalidImplementation.selector, address(bad)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(ERC1967Utils.ERC1967InvalidImplementation.selector, address(bad)));
         vm.prank(timelock);
         t.upgradeToAndCall(address(bad), "");
     }
@@ -241,9 +253,9 @@ contract UpgradeStatePreservationTest is Test {
     // ------------------------------------------------------------------
     function test_StructuralReject_WrongProxiableUUID() public {
         WrongUUID bad = new WrongUUID();
-        vm.expectRevert(abi.encodeWithSelector(
-            UUPSUpgradeable.UUPSUnsupportedProxiableUUID.selector, keccak256("wrong")
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(UUPSUpgradeable.UUPSUnsupportedProxiableUUID.selector, keccak256("wrong"))
+        );
         vm.prank(timelock);
         t.upgradeToAndCall(address(bad), "");
     }
@@ -253,9 +265,9 @@ contract UpgradeStatePreservationTest is Test {
     // ------------------------------------------------------------------
     function test_Auth_NonUpgraderCannotUpgrade() public {
         GoodV2 good = new GoodV2();
-        vm.expectRevert(abi.encodeWithSelector(
-            IAccessControl.AccessControlUnauthorizedAccount.selector, ops, t.UPGRADER_ROLE()
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, ops, t.UPGRADER_ROLE())
+        );
         vm.prank(ops);
         t.upgradeToAndCall(address(good), "");
     }

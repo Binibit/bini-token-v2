@@ -21,14 +21,21 @@ contract V4GatewayForkTest is Test {
     address internal user = address(0xA11CE); // participant
     address internal gateway = address(0x6A7E); // approved gateway (SYSTEM + operator)
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
 
     function setUp() public {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com"); // latest block
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
 
         vm.startPrank(timelock);
         t.setSystemAccounts(_a(genesis), true);

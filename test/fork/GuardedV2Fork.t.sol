@@ -6,11 +6,18 @@ import {BiniTokenV2Guarded as G} from "../../src/BiniTokenV2Guarded.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-interface IV2Factory { function createPair(address, address) external returns (address); }
-interface IV2Pair { function mint(address to) external returns (uint256); }
+interface IV2Factory {
+    function createPair(address, address) external returns (address);
+}
+
+interface IV2Pair {
+    function mint(address to) external returns (uint256);
+}
 
 contract MockUSD is ERC20 {
-    constructor(address to) ERC20("MockUSD", "mUSD") { _mint(to, 1_000_000 ether); }
+    constructor(address to) ERC20("MockUSD", "mUSD") {
+        _mint(to, 1_000_000 ether);
+    }
 }
 
 /// MODEL C decisive PoC — permanently guarded BINI vs REAL mainnet Uniswap V2 (ECON-2 role model).
@@ -27,14 +34,21 @@ contract GuardedV2ForkTest is Test {
     address internal genesis = address(0x703);
     address internal alice = address(0xA11CE);
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
 
     function setUp() public {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com"); // latest block (archive-gated for pinned)
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
         usd = new MockUSD(genesis);
         usd2 = new MockUSD(genesis);
 

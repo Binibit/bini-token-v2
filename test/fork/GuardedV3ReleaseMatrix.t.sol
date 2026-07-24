@@ -6,59 +6,93 @@ import {BiniTokenV2Guarded as G} from "../../src/BiniTokenV2Guarded.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-interface IV3Factory { function createPool(address, address, uint24) external returns (address); }
-interface IV3Pool { function initialize(uint160) external; }
+interface IV3Factory {
+    function createPool(address, address, uint24) external returns (address);
+}
+
+interface IV3Pool {
+    function initialize(uint160) external;
+}
 
 interface INPM {
     struct MintParams {
-        address token0; address token1; uint24 fee;
-        int24 tickLower; int24 tickUpper;
-        uint256 amount0Desired; uint256 amount1Desired;
-        uint256 amount0Min; uint256 amount1Min;
-        address recipient; uint256 deadline;
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        address recipient;
+        uint256 deadline;
     }
     function mint(MintParams calldata) external payable returns (uint256, uint128, uint256, uint256);
 
     struct IncreaseLiquidityParams {
         uint256 tokenId;
-        uint256 amount0Desired; uint256 amount1Desired;
-        uint256 amount0Min; uint256 amount1Min;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
         uint256 deadline;
     }
-    function increaseLiquidity(IncreaseLiquidityParams calldata)
-        external payable returns (uint128, uint256, uint256);
+    function increaseLiquidity(IncreaseLiquidityParams calldata) external payable returns (uint128, uint256, uint256);
 
     struct DecreaseLiquidityParams {
-        uint256 tokenId; uint128 liquidity;
-        uint256 amount0Min; uint256 amount1Min;
+        uint256 tokenId;
+        uint128 liquidity;
+        uint256 amount0Min;
+        uint256 amount1Min;
         uint256 deadline;
     }
     function decreaseLiquidity(DecreaseLiquidityParams calldata) external payable returns (uint256, uint256);
 
     struct CollectParams {
-        uint256 tokenId; address recipient;
-        uint128 amount0Max; uint128 amount1Max;
+        uint256 tokenId;
+        address recipient;
+        uint128 amount0Max;
+        uint128 amount1Max;
     }
     function collect(CollectParams calldata) external payable returns (uint256, uint256);
 
-    function positions(uint256 tokenId) external view returns (
-        uint96 nonce, address operator, address token0, address token1, uint24 fee,
-        int24 tickLower, int24 tickUpper, uint128 liquidity,
-        uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128,
-        uint128 tokensOwed0, uint128 tokensOwed1
-    );
+    function positions(uint256 tokenId)
+        external
+        view
+        returns (
+            uint96 nonce,
+            address operator,
+            address token0,
+            address token1,
+            uint24 fee,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        );
 }
 
 interface ISwapRouter02 {
     struct ExactInputSingleParams {
-        address tokenIn; address tokenOut; uint24 fee; address recipient;
-        uint256 amountIn; uint256 amountOutMinimum; uint160 sqrtPriceLimitX96;
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
     }
     function exactInputSingle(ExactInputSingleParams calldata) external payable returns (uint256);
 }
 
 contract MockUSD is ERC20 {
-    constructor(address to) ERC20("MockUSD", "mUSD") { _mint(to, 100_000_000 ether); }
+    constructor(address to) ERC20("MockUSD", "mUSD") {
+        _mint(to, 100_000_000 ether);
+    }
 }
 
 /// MODEL C — guarded BINI RELEASE MATRIX vs REAL mainnet Uniswap V3 (extends GuardedV3Fork coverage).
@@ -75,14 +109,17 @@ contract MockUSD is ERC20 {
 /// allowances — Permit2 is NOT required and is NOT exercised. Asserted structurally in test_Row14_NoPermit2Required.
 contract GuardedV3ReleaseMatrixTest is Test {
     address constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address constant NPM = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;     // NonfungiblePositionManager
-    address constant ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;  // SwapRouter02
+    address constant NPM = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88; // NonfungiblePositionManager
+    address constant ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45; // SwapRouter02
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    uint160 constant SQRT_1_1 = 79228162514264337593543950336;            // price 1:1
+    uint160 constant SQRT_1_1 = 79228162514264337593543950336; // price 1:1
 
-    uint24 constant FEE_LOW = 500;    int24 constant SPACING_LOW = 10;    // 0.05%
-    uint24 constant FEE_MID = 3000;   int24 constant SPACING_MID = 60;    // 0.30%
-    uint24 constant FEE_HIGH = 10000; int24 constant SPACING_HIGH = 200;  // 1.00%
+    uint24 constant FEE_LOW = 500; // 0.05%
+    int24 constant SPACING_LOW = 10;
+    uint24 constant FEE_MID = 3000; // 0.30%
+    int24 constant SPACING_MID = 60;
+    uint24 constant FEE_HIGH = 10000; // 1.00%
+    int24 constant SPACING_HIGH = 200;
 
     G internal t;
     MockUSD internal usd;
@@ -92,15 +129,25 @@ contract GuardedV3ReleaseMatrixTest is Test {
     address internal genesis = address(0x703);
     address internal p1 = address(0x9151); // participant (retail) recipient
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
-    function _round(int24 tick, int24 spacing) internal pure returns (int24) { return (tick / spacing) * spacing; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
+
+    function _round(int24 tick, int24 spacing) internal pure returns (int24) {
+        return (tick / spacing) * spacing;
+    }
 
     function setUp() public {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com"); // latest block
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
         usd = new MockUSD(genesis);
         vm.prank(timelock);
         t.setSystemAccounts(_a(genesis), true); // genesis = SYSTEM (payer/holder inside perimeter)
@@ -113,17 +160,14 @@ contract GuardedV3ReleaseMatrixTest is Test {
     function _approveInfra(address pool) internal {
         vm.startPrank(timelock);
         t.setMarketEndpoints(_a(pool), true); // pool = MARKET_ENDPOINT
-        t.setOperators(_a(NPM), true);         // NPM may feed endpoints (mint / increase liquidity)
-        t.setOperators(_a(ROUTER), true);      // Router may feed endpoints (swap)
+        t.setOperators(_a(NPM), true); // NPM may feed endpoints (mint / increase liquidity)
+        t.setOperators(_a(ROUTER), true); // Router may feed endpoints (swap)
         vm.stopPrank();
     }
 
     /// Shared: build an APPROVED 0.30% pool with genesis-funded liquidity in GUARDED mode.
     /// Returns pool, position tokenId, and the minted liquidity. Genesis has approved NPM for both tokens.
-    function _approvedPoolWithLiquidity()
-        internal
-        returns (address pool, uint256 tokenId, uint128 liq)
-    {
+    function _approvedPoolWithLiquidity() internal returns (address pool, uint256 tokenId, uint128 liq) {
         (address t0, address t1) = _sorted(address(t), address(usd));
         pool = IV3Factory(V3_FACTORY).createPool(address(t), address(usd), FEE_MID);
         IV3Pool(pool).initialize(SQRT_1_1);
@@ -134,12 +178,22 @@ contract GuardedV3ReleaseMatrixTest is Test {
         vm.startPrank(genesis);
         t.approve(NPM, type(uint256).max);
         usd.approve(NPM, type(uint256).max);
-        (tokenId, liq,,) = INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_MID,
-            tickLower: _round(-6000, SPACING_MID), tickUpper: _round(6000, SPACING_MID),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
-        }));
+        (tokenId, liq,,) = INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_MID,
+                    tickLower: _round(-6000, SPACING_MID),
+                    tickUpper: _round(6000, SPACING_MID),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp + 1
+                })
+            );
         vm.stopPrank();
         assertGt(t.balanceOf(pool), 0, "approved pool holds BINI liquidity");
     }
@@ -157,11 +211,17 @@ contract GuardedV3ReleaseMatrixTest is Test {
         uint128 liqBefore = _posLiquidity(tokenId);
 
         vm.prank(genesis);
-        (uint128 added,,) = INPM(NPM).increaseLiquidity(INPM.IncreaseLiquidityParams({
-            tokenId: tokenId,
-            amount0Desired: 100_000 ether, amount1Desired: 100_000 ether,
-            amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
-        }));
+        (uint128 added,,) = INPM(NPM)
+            .increaseLiquidity(
+                INPM.IncreaseLiquidityParams({
+                    tokenId: tokenId,
+                    amount0Desired: 100_000 ether,
+                    amount1Desired: 100_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp + 1
+                })
+            );
 
         assertGt(added, 0, "liquidity added");
         assertGt(_posLiquidity(tokenId), liqBefore, "position liquidity grew");
@@ -177,10 +237,12 @@ contract GuardedV3ReleaseMatrixTest is Test {
         uint256 genesisBiniBefore = t.balanceOf(genesis);
 
         vm.prank(genesis);
-        INPM(NPM).decreaseLiquidity(INPM.DecreaseLiquidityParams({
-            tokenId: tokenId, liquidity: liq / 2,
-            amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .decreaseLiquidity(
+                INPM.DecreaseLiquidityParams({
+                    tokenId: tokenId, liquidity: liq / 2, amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
+                })
+            );
 
         assertLt(_posLiquidity(tokenId), liq, "position liquidity reduced");
         // decrease only books tokensOwed inside the pool; no BINI has physically moved yet.
@@ -195,15 +257,19 @@ contract GuardedV3ReleaseMatrixTest is Test {
         (, uint256 tokenId, uint128 liq) = _approvedPoolWithLiquidity();
 
         vm.startPrank(genesis);
-        INPM(NPM).decreaseLiquidity(INPM.DecreaseLiquidityParams({
-            tokenId: tokenId, liquidity: liq / 2,
-            amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .decreaseLiquidity(
+                INPM.DecreaseLiquidityParams({
+                    tokenId: tokenId, liquidity: liq / 2, amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
+                })
+            );
         uint256 genesisBiniBefore = t.balanceOf(genesis);
-        INPM(NPM).collect(INPM.CollectParams({
-            tokenId: tokenId, recipient: genesis,
-            amount0Max: type(uint128).max, amount1Max: type(uint128).max
-        }));
+        INPM(NPM)
+            .collect(
+                INPM.CollectParams({
+                    tokenId: tokenId, recipient: genesis, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+                })
+            );
         vm.stopPrank();
 
         assertGt(t.balanceOf(genesis), genesisBiniBefore, "genesis received BINI back from pool via collect");
@@ -219,15 +285,19 @@ contract GuardedV3ReleaseMatrixTest is Test {
         t.setParticipants(_a(p1), true); // onboard retail recipient (PARTICIPANT class)
 
         vm.startPrank(genesis);
-        INPM(NPM).decreaseLiquidity(INPM.DecreaseLiquidityParams({
-            tokenId: tokenId, liquidity: liq / 2,
-            amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .decreaseLiquidity(
+                INPM.DecreaseLiquidityParams({
+                    tokenId: tokenId, liquidity: liq / 2, amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
+                })
+            );
         uint256 p1BiniBefore = t.balanceOf(p1);
-        INPM(NPM).collect(INPM.CollectParams({
-            tokenId: tokenId, recipient: p1,
-            amount0Max: type(uint128).max, amount1Max: type(uint128).max
-        }));
+        INPM(NPM)
+            .collect(
+                INPM.CollectParams({
+                    tokenId: tokenId, recipient: p1, amount0Max: type(uint128).max, amount1Max: type(uint128).max
+                })
+            );
         vm.stopPrank();
 
         assertGt(t.balanceOf(p1), p1BiniBefore, "participant received BINI from pool (pool=from is approved endpoint)");
@@ -254,10 +324,17 @@ contract GuardedV3ReleaseMatrixTest is Test {
         assertTrue(t.paused(), "paused");
 
         INPM.MintParams memory mp = INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_MID,
-            tickLower: _round(-6000, SPACING_MID), tickUpper: _round(6000, SPACING_MID),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
+            token0: t0,
+            token1: t1,
+            fee: FEE_MID,
+            tickLower: _round(-6000, SPACING_MID),
+            tickUpper: _round(6000, SPACING_MID),
+            amount0Desired: 200_000 ether,
+            amount1Desired: 200_000 ether,
+            amount0Min: 0,
+            amount1Min: 0,
+            recipient: genesis,
+            deadline: block.timestamp + 1
         });
         vm.prank(genesis);
         vm.expectRevert(); // EnforcedPause on the BINI leg bubbles through NPM
@@ -285,8 +362,13 @@ contract GuardedV3ReleaseMatrixTest is Test {
         t.pause();
 
         ISwapRouter02.ExactInputSingleParams memory sp = ISwapRouter02.ExactInputSingleParams({
-            tokenIn: address(usd), tokenOut: address(t), fee: FEE_MID, recipient: genesis,
-            amountIn: 1_000 ether, amountOutMinimum: 0, sqrtPriceLimitX96: 0
+            tokenIn: address(usd),
+            tokenOut: address(t),
+            fee: FEE_MID,
+            recipient: genesis,
+            amountIn: 1_000 ether,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
         });
         vm.prank(genesis);
         vm.expectRevert(); // BINI out-leg (pool->genesis) reverts while paused
@@ -313,15 +395,25 @@ contract GuardedV3ReleaseMatrixTest is Test {
         t.activateGuardedMode();
 
         vm.startPrank(genesis);
-        t.approve(NPM, 0);                       // zero BINI allowance
+        t.approve(NPM, 0); // zero BINI allowance
         usd.approve(NPM, type(uint256).max);
         vm.expectRevert(); // STF: NPM.transferFrom(BINI) fails on zero allowance
-        INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_MID,
-            tickLower: _round(-6000, SPACING_MID), tickUpper: _round(6000, SPACING_MID),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_MID,
+                    tickLower: _round(-6000, SPACING_MID),
+                    tickUpper: _round(6000, SPACING_MID),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp + 1
+                })
+            );
         vm.stopPrank();
         assertEq(t.balanceOf(pool), 0, "no BINI reached the pool");
     }
@@ -338,15 +430,25 @@ contract GuardedV3ReleaseMatrixTest is Test {
         t.activateGuardedMode();
 
         vm.startPrank(genesis);
-        t.approve(NPM, 1 ether);                 // far less than the ~200k BINI required
+        t.approve(NPM, 1 ether); // far less than the ~200k BINI required
         usd.approve(NPM, type(uint256).max);
         vm.expectRevert(); // STF: allowance underflow in transferFrom
-        INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_MID,
-            tickLower: _round(-6000, SPACING_MID), tickUpper: _round(6000, SPACING_MID),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_MID,
+                    tickLower: _round(-6000, SPACING_MID),
+                    tickUpper: _round(6000, SPACING_MID),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp + 1
+                })
+            );
         vm.stopPrank();
     }
 
@@ -365,12 +467,22 @@ contract GuardedV3ReleaseMatrixTest is Test {
         t.approve(NPM, type(uint256).max);
         usd.approve(NPM, type(uint256).max);
         vm.expectRevert(); // NPM checkDeadline: "Transaction too old"
-        INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_MID,
-            tickLower: _round(-6000, SPACING_MID), tickUpper: _round(6000, SPACING_MID),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp - 1
-        }));
+        INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_MID,
+                    tickLower: _round(-6000, SPACING_MID),
+                    tickUpper: _round(6000, SPACING_MID),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp - 1
+                })
+            );
         vm.stopPrank();
     }
 
@@ -383,10 +495,18 @@ contract GuardedV3ReleaseMatrixTest is Test {
         vm.startPrank(genesis);
         usd.approve(ROUTER, type(uint256).max);
         vm.expectRevert(); // SwapRouter: "Too little received"
-        ISwapRouter02(ROUTER).exactInputSingle(ISwapRouter02.ExactInputSingleParams({
-            tokenIn: address(usd), tokenOut: address(t), fee: FEE_MID, recipient: genesis,
-            amountIn: 1_000 ether, amountOutMinimum: 1_000_000_000 ether, sqrtPriceLimitX96: 0
-        }));
+        ISwapRouter02(ROUTER)
+            .exactInputSingle(
+                ISwapRouter02.ExactInputSingleParams({
+                    tokenIn: address(usd),
+                    tokenOut: address(t),
+                    fee: FEE_MID,
+                    recipient: genesis,
+                    amountIn: 1_000 ether,
+                    amountOutMinimum: 1_000_000_000 ether,
+                    sqrtPriceLimitX96: 0
+                })
+            );
         vm.stopPrank();
     }
 
@@ -404,12 +524,22 @@ contract GuardedV3ReleaseMatrixTest is Test {
         vm.startPrank(genesis);
         t.approve(NPM, type(uint256).max);
         usd.approve(NPM, type(uint256).max);
-        INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_LOW,
-            tickLower: _round(-6000, SPACING_LOW), tickUpper: _round(6000, SPACING_LOW),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_LOW,
+                    tickLower: _round(-6000, SPACING_LOW),
+                    tickUpper: _round(6000, SPACING_LOW),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp + 1
+                })
+            );
         vm.stopPrank();
         assertGt(t.balanceOf(pool), 0, "approved 0.05% pool holds BINI liquidity");
     }
@@ -432,12 +562,22 @@ contract GuardedV3ReleaseMatrixTest is Test {
         t.approve(NPM, type(uint256).max);
         usd.approve(NPM, type(uint256).max);
         vm.expectRevert(); // to=pool is class NONE -> bothApproved false -> TransferNotAllowed
-        INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_HIGH,
-            tickLower: _round(-6000, SPACING_HIGH), tickUpper: _round(6000, SPACING_HIGH),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_HIGH,
+                    tickLower: _round(-6000, SPACING_HIGH),
+                    tickUpper: _round(6000, SPACING_HIGH),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp + 1
+                })
+            );
         vm.stopPrank();
         assertEq(t.balanceOf(pool), 0, "unapproved fee-tier pool never receives BINI");
     }
@@ -450,11 +590,17 @@ contract GuardedV3ReleaseMatrixTest is Test {
 
         // Sanity: increase works while NPM is still an approved operator.
         vm.prank(genesis);
-        INPM(NPM).increaseLiquidity(INPM.IncreaseLiquidityParams({
-            tokenId: tokenId,
-            amount0Desired: 10_000 ether, amount1Desired: 10_000 ether,
-            amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .increaseLiquidity(
+                INPM.IncreaseLiquidityParams({
+                    tokenId: tokenId,
+                    amount0Desired: 10_000 ether,
+                    amount1Desired: 10_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp + 1
+                })
+            );
 
         // Revoke NPM as operator -> it can no longer feed the endpoint pool.
         vm.prank(timelock);
@@ -463,11 +609,17 @@ contract GuardedV3ReleaseMatrixTest is Test {
 
         vm.prank(genesis);
         vm.expectRevert(); // to=pool endpoint requires approvedOperator[msg.sender]=NPM, now false
-        INPM(NPM).increaseLiquidity(INPM.IncreaseLiquidityParams({
-            tokenId: tokenId,
-            amount0Desired: 10_000 ether, amount1Desired: 10_000 ether,
-            amount0Min: 0, amount1Min: 0, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .increaseLiquidity(
+                INPM.IncreaseLiquidityParams({
+                    tokenId: tokenId,
+                    amount0Desired: 10_000 ether,
+                    amount1Desired: 10_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp + 1
+                })
+            );
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -487,12 +639,22 @@ contract GuardedV3ReleaseMatrixTest is Test {
         vm.startPrank(genesis);
         t.approve(NPM, type(uint256).max);
         usd.approve(NPM, type(uint256).max);
-        INPM(NPM).mint(INPM.MintParams({
-            token0: t0, token1: t1, fee: FEE_MID,
-            tickLower: _round(-6000, SPACING_MID), tickUpper: _round(6000, SPACING_MID),
-            amount0Desired: 200_000 ether, amount1Desired: 200_000 ether,
-            amount0Min: 0, amount1Min: 0, recipient: genesis, deadline: block.timestamp + 1
-        }));
+        INPM(NPM)
+            .mint(
+                INPM.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: FEE_MID,
+                    tickLower: _round(-6000, SPACING_MID),
+                    tickUpper: _round(6000, SPACING_MID),
+                    amount0Desired: 200_000 ether,
+                    amount1Desired: 200_000 ether,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: genesis,
+                    deadline: block.timestamp + 1
+                })
+            );
         vm.stopPrank();
 
         assertGt(t.balanceOf(pool), 0, "mint funded via plain ERC-20 approve");

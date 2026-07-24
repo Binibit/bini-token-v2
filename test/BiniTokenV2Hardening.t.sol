@@ -24,9 +24,8 @@ contract BiniTokenV2HardeningTest is Test {
 
     function setUp() public {
         BiniTokenV2 impl = new BiniTokenV2();
-        bytes memory initData = abi.encodeCall(
-            BiniTokenV2.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days))
-        );
+        bytes memory initData =
+            abi.encodeCall(BiniTokenV2.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days)));
         token = BiniTokenV2(address(new ERC1967Proxy(address(impl), initData)));
     }
 

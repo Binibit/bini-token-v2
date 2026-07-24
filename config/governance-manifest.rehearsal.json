@@ -1,0 +1,37 @@
+{
+  "_status": "CANDIDATE — NOT PRODUCTION CANON. Values for rehearsal only; require explicit owner ratification in docs/release/00_BUSINESS_RATIFICATIONS.md before any deploy.",
+  "chainId": "TBD (Ethereum mainnet = 1 at go-live; rehearsals run local/fork)",
+  "token": {
+    "contract": "BiniTokenV2Guarded",
+    "initializer": "initialize(address adminTimelock, address operationsSafe, address securitySafe, address genesisDistributionSafe, uint48 adminTransferDelay)",
+    "namespacedStorageSlot": "0x8f8334c80b8b39b92d35e01e80c0222e020c97fe2254163fdb7f364477b6f000",
+    "fixedSupply": "1000000000 ether",
+    "adminTransferDelay": { "candidate": "48 hours", "ratified": false }
+  },
+  "safes": {
+    "governanceSafe": { "role": "Timelock PROPOSER (off-chain governance)", "threshold": { "candidate": "4-of-7", "ratified": false } },
+    "securitySafe":   { "role": "token PAUSER + EMERGENCY_REVOKER; Timelock CANCELLER", "threshold": { "candidate": "3-of-5", "ratified": false } },
+    "operationsSafe": { "role": "token PARTICIPANT_MANAGER only", "threshold": { "candidate": "3-of-5 (>=3-of-5 required for a perimeter-admitting role)", "ratified": false } },
+    "treasurySafe":   { "role": "downstream holder (approved SYSTEM/CUSTODY as decided)", "threshold": { "candidate": "3-of-5", "ratified": false } },
+    "liquiditySafe":  { "role": "downstream operator/endpoint funding as decided", "threshold": { "candidate": "3-of-5", "ratified": false } },
+    "genesisSafe":    { "role": "BOOTSTRAP_OPERATOR + 1B genesis supply; emptied + role revoked at go-live", "threshold": { "candidate": "3-of-5", "ratified": false } }
+  },
+  "timelock": {
+    "contract": "OpenZeppelin TimelockController (5.6.1)",
+    "minDelay": { "candidate": "48 hours", "ratified": false },
+    "proposers": ["governanceSafe"],
+    "executors": ["governanceSafe or open executor — ratify"],
+    "cancellers": ["securitySafe"],
+    "admin": "self (address(0) after bootstrap grant/renounce)",
+    "holdsTokenRoles": ["DEFAULT_ADMIN", "UPGRADER", "POLICY_MANAGER", "SYSTEM_MANAGER", "CUSTODY_MANAGER", "ENDPOINT_MANAGER", "OPERATOR_MANAGER", "UNPAUSER"]
+  },
+  "operatorRegistry": {
+    "_note": "approvedOperator is a GLOBAL capability (see doc 10 + 05). Only vetted, immutable, well-known periphery may be operators. Governance must record per-operator: chainId, exact address, runtime code hash, proxy/upgradeability status, allowed endpoints, rationale, fork evidence. Any code-hash/impl change => alert -> revoke -> independent review -> Timelock re-approval.",
+    "launchAllowlistCandidates": [
+      { "name": "Uniswap V3 NonfungiblePositionManager", "address": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "ratified": false },
+      { "name": "Uniswap SwapRouter02", "address": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45", "ratified": false }
+    ]
+  },
+  "unpauseTopology": { "selected": "U2 (UNPAUSER -> Timelock)", "ratified": true, "note": "Pause instant via Security; unpause delayed+cancellable via Timelock." },
+  "v4": { "scope": "DEFERRED from launch (ratified)", "note": "Returns as a separate audited epic; non-blocking." }
+}

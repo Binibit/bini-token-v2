@@ -53,7 +53,10 @@ contract Handler is Test {
         if (bal == 0) return;
         amt = bound(amt, 0, bal);
         vm.prank(owner);
-        try token.approve(spender, amt) {} catch { return; }
+        try token.approve(spender, amt) {}
+        catch {
+            return;
+        }
         vm.prank(spender);
         try token.transferFrom(owner, to, amt) {} catch {}
     }
@@ -105,9 +108,8 @@ contract BiniTokenV2InvariantTest is Test {
 
     function setUp() public {
         BiniTokenV2 impl = new BiniTokenV2();
-        bytes memory initData = abi.encodeCall(
-            BiniTokenV2.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days))
-        );
+        bytes memory initData =
+            abi.encodeCall(BiniTokenV2.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days)));
         token = BiniTokenV2(address(new ERC1967Proxy(address(impl), initData)));
 
         actors.push(genesis); // holds all supply + BOOTSTRAP_OPERATOR

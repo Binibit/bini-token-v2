@@ -30,9 +30,8 @@ contract BiniTokenV2Test is Test {
 
     function setUp() public {
         BiniTokenV2 impl = new BiniTokenV2();
-        bytes memory initData = abi.encodeCall(
-            BiniTokenV2.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days))
-        );
+        bytes memory initData =
+            abi.encodeCall(BiniTokenV2.initialize, (timelock, pauser, unpauser, genesis, uint48(3 days)));
         // Atomic deploy+init: init calldata passed to the proxy constructor (single tx).
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         token = BiniTokenV2(address(proxy));

@@ -11,10 +11,21 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 ///      lever we are attacking. `pull` bubbles the revert; `tryPull` swallows it and returns success.
 contract MaliciousOperator {
     G t;
-    constructor(G _t) { t = _t; }
-    function pull(address from, address to, uint256 amt) external { t.transferFrom(from, to, amt); }
+
+    constructor(G _t) {
+        t = _t;
+    }
+
+    function pull(address from, address to, uint256 amt) external {
+        t.transferFrom(from, to, amt);
+    }
+
     function tryPull(address from, address to, uint256 amt) external returns (bool ok) {
-        try t.transferFrom(from, to, amt) { ok = true; } catch { ok = false; }
+        try t.transferFrom(from, to, amt) {
+            ok = true;
+        } catch {
+            ok = false;
+        }
     }
 }
 
@@ -37,29 +48,36 @@ contract GlobalOperatorThreatTest is Test {
     MaliciousOperator internal mop;
 
     address internal timelock = address(0x700); // POLICY/SYSTEM/ENDPOINT/OPERATOR managers
-    address internal ops = address(0x704);      // PARTICIPANT_MANAGER
+    address internal ops = address(0x704); // PARTICIPANT_MANAGER
     address internal security = address(0x701); // EMERGENCY_REVOKER + PAUSER
-    address internal genesis = address(0x703);  // SYSTEM + BOOTSTRAP_OPERATOR + supply
+    address internal genesis = address(0x703); // SYSTEM + BOOTSTRAP_OPERATOR + supply
 
-    address internal p1 = address(0xA11CE);     // PARTICIPANT, seeded holder
-    address internal p2 = address(0xB0B);       // PARTICIPANT, seeded holder
+    address internal p1 = address(0xA11CE); // PARTICIPANT, seeded holder
+    address internal p2 = address(0xB0B); // PARTICIPANT, seeded holder
     address internal endpoint = address(0xE9D); // MARKET_ENDPOINT (approved pool/PoolManager)
-    address internal outsider = address(0xDEAD);// never approved, class NONE forever
+    address internal outsider = address(0xDEAD); // never approved, class NONE forever
 
     uint256 internal constant SEED = 1_000 ether;
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
 
     function setUp() public {
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
 
         // Build the perimeter. Sensitive classes -> Timelock; PARTICIPANT -> Ops.
         vm.startPrank(timelock);
-        t.setSystemAccounts(_a(genesis), true);      // genesis is a SYSTEM sender (also lets it activate)
-        t.setMarketEndpoints(_a(endpoint), true);    // the one approved market endpoint
+        t.setSystemAccounts(_a(genesis), true); // genesis is a SYSTEM sender (also lets it activate)
+        t.setMarketEndpoints(_a(endpoint), true); // the one approved market endpoint
         vm.stopPrank();
 
         vm.startPrank(ops);
@@ -97,9 +115,9 @@ contract GlobalOperatorThreatTest is Test {
     // valid destination, the standard ERC20 allowance check fires first and blocks the pull.
     function test_Row1_NoAllowance_PreventedByAllowance() public {
         assertEq(t.allowance(p1, address(mop)), 0);
-        vm.expectRevert(abi.encodeWithSelector(
-            IERC20Errors.ERC20InsufficientAllowance.selector, address(mop), 0, 100 ether
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(mop), 0, 100 ether)
+        );
         mop.pull(p1, endpoint, 100 ether);
     }
 
@@ -114,9 +132,7 @@ contract GlobalOperatorThreatTest is Test {
         assertEq(t.balanceOf(endpoint), 100 ether);
         assertEq(t.allowance(p1, address(mop)), 0);
 
-        vm.expectRevert(abi.encodeWithSelector(
-            IERC20Errors.ERC20InsufficientAllowance.selector, address(mop), 0, 1
-        ));
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(mop), 0, 1));
         mop.pull(p1, endpoint, 1); // 1 wei over the ceiling -> blocked
     }
 
@@ -157,9 +173,9 @@ contract GlobalOperatorThreatTest is Test {
         t.approve(address(mop), type(uint256).max);
 
         bool ok = mop.tryPull(p1, outsider, 100 ether);
-        assertFalse(ok);                       // reverted: TransferNotAllowed (to == NONE)
+        assertFalse(ok); // reverted: TransferNotAllowed (to == NONE)
         assertEq(t.balanceOf(outsider), 0);
-        assertEq(t.balanceOf(p1), SEED);       // nothing moved
+        assertEq(t.balanceOf(p1), SEED); // nothing moved
     }
 
     // ROW 6 — PARTICIPANT -> PARTICIPANT VIA OPERATOR.  [accepted-global-operator-risk — NOT endpoint-only]
@@ -189,7 +205,7 @@ contract GlobalOperatorThreatTest is Test {
         assertEq(uint256(t.accountClassOf(endpoint)), uint256(G.AccountClass.NONE));
 
         bool ok = mop.tryPull(p1, endpoint, 100 ether);
-        assertFalse(ok);                   // reverted: to is now class NONE
+        assertFalse(ok); // reverted: to is now class NONE
         assertEq(t.balanceOf(p1), SEED);
     }
 
@@ -206,7 +222,7 @@ contract GlobalOperatorThreatTest is Test {
         assertEq(uint256(t.accountClassOf(endpoint)), uint256(G.AccountClass.MARKET_ENDPOINT)); // endpoint still valid
 
         bool ok = mop.tryPull(p1, endpoint, 100 ether);
-        assertFalse(ok);                   // reverted: endpoint dest needs an operator, mop no longer one
+        assertFalse(ok); // reverted: endpoint dest needs an operator, mop no longer one
         assertEq(t.balanceOf(p1), SEED);
     }
 
@@ -218,12 +234,12 @@ contract GlobalOperatorThreatTest is Test {
         t.approve(address(mop), type(uint256).max);
 
         vm.prank(security);
-        t.emergencyRevoke(_a(p1));         // freeze: class -> NONE, balance kept
+        t.emergencyRevoke(_a(p1)); // freeze: class -> NONE, balance kept
         assertEq(uint256(t.accountClassOf(p1)), uint256(G.AccountClass.NONE));
-        assertEq(t.balanceOf(p1), SEED);   // balance unchanged (freeze, not confiscation)
+        assertEq(t.balanceOf(p1), SEED); // balance unchanged (freeze, not confiscation)
 
         bool ok = mop.tryPull(p1, endpoint, 100 ether);
-        assertFalse(ok);                   // reverted: from is now class NONE
+        assertFalse(ok); // reverted: from is now class NONE
         assertEq(t.balanceOf(p1), SEED);
     }
 

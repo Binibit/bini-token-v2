@@ -7,7 +7,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 /// Append-only upgrade target to exercise the UUPS path under invariant fuzzing (class preservation).
 contract GuardedInvV2 is G {
-    function version() external pure returns (uint256) { return 2; }
+    function version() external pure returns (uint256) {
+        return 2;
+    }
 }
 
 /// ECON-2 policy fuzz driver. Random sequences of: participant onboarding (Ops), sensitive-class
@@ -20,41 +22,81 @@ contract Handler is Test {
     address public ops;
     address public security;
     address public genesis; // actors[0], SYSTEM + BOOTSTRAP_OPERATOR + supply
-    address public sysAcct;  // pre-approved SYSTEM, NOT in the random pool — boundary/upgrade probe only
+    address public sysAcct; // pre-approved SYSTEM, NOT in the random pool — boundary/upgrade probe only
     address[] public actors;
     bool public everGuarded;
 
     constructor(G _t, address _timelock, address _ops, address _security, address[] memory _actors, address _sysAcct) {
-        t = _t; timelock = _timelock; ops = _ops; security = _security;
-        actors = _actors; genesis = _actors[0]; sysAcct = _sysAcct;
+        t = _t;
+        timelock = _timelock;
+        ops = _ops;
+        security = _security;
+        actors = _actors;
+        genesis = _actors[0];
+        sysAcct = _sysAcct;
     }
 
-    function _actor(uint256 s) internal view returns (address) { return actors[s % actors.length]; }
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _actor(uint256 s) internal view returns (address) {
+        return actors[s % actors.length];
+    }
+
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
 
     function onboardParticipant(uint256 s) external {
         vm.prank(ops);
         try t.setParticipants(_a(_actor(s)), true) {} catch {}
     }
+
     // PRIVILEGE-BYPASS attempts — Ops has ONLY PARTICIPANT_MANAGER; every one must revert.
-    function opsTrySystem(uint256 s) external { vm.prank(ops); try t.setSystemAccounts(_a(_actor(s)), true) {} catch {} }
-    function opsTryEndpoint(uint256 s) external { vm.prank(ops); try t.setMarketEndpoints(_a(_actor(s)), true) {} catch {} }
-    function opsTryOperator(uint256 s) external { vm.prank(ops); try t.setOperators(_a(_actor(s)), true) {} catch {} }
+    function opsTrySystem(uint256 s) external {
+        vm.prank(ops);
+        try t.setSystemAccounts(_a(_actor(s)), true) {} catch {}
+    }
+
+    function opsTryEndpoint(uint256 s) external {
+        vm.prank(ops);
+        try t.setMarketEndpoints(_a(_actor(s)), true) {} catch {}
+    }
+
+    function opsTryOperator(uint256 s) external {
+        vm.prank(ops);
+        try t.setOperators(_a(_actor(s)), true) {} catch {}
+    }
+
     // Ops attacking a live SYSTEM address — both directions must revert (boundary), leaving it SYSTEM.
-    function opsTryRevokeSystem() external { vm.prank(ops); try t.setParticipants(_a(sysAcct), false) {} catch {} }
-    function opsTryReclassSystem() external { vm.prank(ops); try t.setParticipants(_a(sysAcct), true) {} catch {} }
+    function opsTryRevokeSystem() external {
+        vm.prank(ops);
+        try t.setParticipants(_a(sysAcct), false) {} catch {}
+    }
 
-    function approveOperator(uint256 s) external { vm.prank(timelock); try t.setOperators(_a(_actor(s)), true) {} catch {} }
+    function opsTryReclassSystem() external {
+        vm.prank(ops);
+        try t.setParticipants(_a(sysAcct), true) {} catch {}
+    }
 
-    function freeze(uint256 s) external { vm.prank(security); try t.emergencyRevoke(_a(_actor(s))) {} catch {} }
+    function approveOperator(uint256 s) external {
+        vm.prank(timelock);
+        try t.setOperators(_a(_actor(s)), true) {} catch {}
+    }
+
+    function freeze(uint256 s) external {
+        vm.prank(security);
+        try t.emergencyRevoke(_a(_actor(s))) {} catch {}
+    }
 
     function activate() external {
         vm.prank(timelock);
-        try t.activateGuardedMode() { everGuarded = true; } catch {}
+        try t.activateGuardedMode() {
+            everGuarded = true;
+        } catch {}
     }
 
     function transfer(uint256 fs, uint256 ts, uint256 amt) external {
-        address from = _actor(fs); address to = _actor(ts);
+        address from = _actor(fs);
+        address to = _actor(ts);
         uint256 bal = t.balanceOf(from);
         if (bal == 0) return;
         amt = bound(amt, 0, bal);
@@ -68,7 +110,9 @@ contract Handler is Test {
         try t.upgradeToAndCall(address(impl), "") {} catch {}
     }
 
-    function actorList() external view returns (address[] memory) { return actors; }
+    function actorList() external view returns (address[] memory) {
+        return actors;
+    }
 }
 
 contract GuardedPolicyInvariantTest is Test {
@@ -87,25 +131,32 @@ contract GuardedPolicyInvariantTest is Test {
 
     function setUp() public {
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
 
         vm.startPrank(timelock);
         t.setSystemAccounts(_a(genesis), true); // genesis is a SYSTEM sender for guarded transfers
         t.setSystemAccounts(_a(sysAcct), true); // pre-approved SYSTEM — boundary/upgrade preservation probe
         vm.stopPrank();
 
-        actors.push(genesis);          // 0
+        actors.push(genesis); // 0
         actors.push(address(0xA11CE)); // 1
-        actors.push(address(0xB0B));   // 2
+        actors.push(address(0xB0B)); // 2
         actors.push(address(0xCA401)); // 3
 
         h = new Handler(t, timelock, ops, security, actors, sysAcct);
         targetContract(address(h));
     }
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
 
     // --- P0.6: Ops role is confined forever ---
     function invariant_OpsNeverGainsSensitiveRoles() public view {
@@ -122,13 +173,21 @@ contract GuardedPolicyInvariantTest is Test {
     }
 
     // --- P0.2: freeze is not confiscation — supply constant, tokens never leave the actor set ---
-    function invariant_SupplyConstant() public view { assertEq(t.totalSupply(), MAX); }
+    function invariant_SupplyConstant() public view {
+        assertEq(t.totalSupply(), MAX);
+    }
+
     function invariant_BalanceConservation() public view {
         uint256 sum;
-        for (uint256 i; i < actors.length; ++i) sum += t.balanceOf(actors[i]);
+        for (uint256 i; i < actors.length; ++i) {
+            sum += t.balanceOf(actors[i]);
+        }
         assertEq(sum, MAX);
     }
-    function invariant_CapNeverExceeded() public view { assertLe(t.totalSupply(), t.cap()); }
+
+    function invariant_CapNeverExceeded() public view {
+        assertLe(t.totalSupply(), t.cap());
+    }
 
     // --- mode one-way: once GUARDED, never returns to BOOTSTRAP ---
     function invariant_GuardedMonotonic() public view {

@@ -55,8 +55,7 @@ contract TimelockGovernanceTest is Test {
         // --- deploy the token behind an ERC1967 proxy, admin = the Timelock ---
         BiniTokenV2Guarded impl = new BiniTokenV2Guarded();
         bytes memory initData = abi.encodeCall(
-            BiniTokenV2Guarded.initialize,
-            (address(timelock), opsSafe, securityActor, genesisSafe, uint48(3 days))
+            BiniTokenV2Guarded.initialize, (address(timelock), opsSafe, securityActor, genesisSafe, uint48(3 days))
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         token = BiniTokenV2Guarded(address(proxy));
@@ -142,7 +141,9 @@ contract TimelockGovernanceTest is Test {
 
         // 1 == OperationState.Waiting; execute requires Ready.
         vm.expectRevert(
-            abi.encodeWithSelector(TimelockController.TimelockUnexpectedOperationState.selector, id, bytes32(uint256(1 << 2)))
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector, id, bytes32(uint256(1 << 2))
+            )
         );
         vm.prank(executorActor);
         timelock.execute(address(token), 0, data, bytes32(0), bytes32("unpause"));
@@ -168,7 +169,9 @@ contract TimelockGovernanceTest is Test {
         // Warp past the delay and prove the cancelled op still cannot execute.
         vm.warp(block.timestamp + MIN_DELAY + 1);
         vm.expectRevert(
-            abi.encodeWithSelector(TimelockController.TimelockUnexpectedOperationState.selector, id, bytes32(uint256(1 << 2)))
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector, id, bytes32(uint256(1 << 2))
+            )
         );
         vm.prank(executorActor);
         timelock.execute(address(token), 0, data, bytes32(0), bytes32("cancelme"));
@@ -245,8 +248,7 @@ contract TimelockGovernanceTest is Test {
     // ==========================================================================
     function test_10_TimelockPerformsAuthorizedUpgrade() public {
         TLInvV2 newImpl = new TLInvV2();
-        bytes memory upgradeData =
-            abi.encodeCall(UUPSUpgradeable.upgradeToAndCall, (address(newImpl), ""));
+        bytes memory upgradeData = abi.encodeCall(UUPSUpgradeable.upgradeToAndCall, (address(newImpl), ""));
 
         _schedule(address(token), upgradeData, bytes32("upgrade"));
         vm.warp(block.timestamp + MIN_DELAY + 1);

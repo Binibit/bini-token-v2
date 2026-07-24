@@ -20,12 +20,20 @@ contract GuardedUnitTest is Test {
 
     function setUp() public {
         G impl = new G();
-        t = G(address(new ERC1967Proxy(address(impl), abi.encodeCall(
-            G.initialize, (timelock, ops, security, genesis, uint48(3 days))
-        ))));
+        t = G(
+            address(
+                new ERC1967Proxy(
+                    address(impl), abi.encodeCall(G.initialize, (timelock, ops, security, genesis, uint48(3 days)))
+                )
+            )
+        );
     }
 
-    function _a(address x) internal pure returns (address[] memory r) { r = new address[](1); r[0] = x; }
+    function _a(address x) internal pure returns (address[] memory r) {
+        r = new address[](1);
+        r[0] = x;
+    }
+
     function _unauth(bytes32 role) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(0x704), role);
     }
@@ -44,11 +52,13 @@ contract GuardedUnitTest is Test {
         vm.prank(ops);
         t.setSystemAccounts(_a(poolish), true);
     }
+
     function test_Ops_CannotSetEndpoint() public {
         vm.expectRevert(_unauth(t.ENDPOINT_MANAGER_ROLE()));
         vm.prank(ops);
         t.setMarketEndpoints(_a(poolish), true);
     }
+
     function test_Ops_CannotSetOperator() public {
         vm.expectRevert(_unauth(t.OPERATOR_MANAGER_ROLE()));
         vm.prank(ops);
@@ -59,17 +69,21 @@ contract GuardedUnitTest is Test {
     function test_Ops_CannotCrossClassBoundary() public {
         vm.prank(timelock);
         t.setSystemAccounts(_a(poolish), true); // poolish = SYSTEM (Timelock)
-        vm.expectRevert(abi.encodeWithSelector(
-            G.ClassBoundaryViolation.selector, poolish, G.AccountClass.SYSTEM, G.AccountClass.PARTICIPANT
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                G.ClassBoundaryViolation.selector, poolish, G.AccountClass.SYSTEM, G.AccountClass.PARTICIPANT
+            )
+        );
         vm.prank(ops);
         t.setParticipants(_a(poolish), false); // Ops tries to revoke a SYSTEM addr -> blocked
     }
 
     function test_Security_CannotApprove() public {
-        vm.expectRevert(abi.encodeWithSelector(
-            IAccessControl.AccessControlUnauthorizedAccount.selector, security, t.PARTICIPANT_MANAGER_ROLE()
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, security, t.PARTICIPANT_MANAGER_ROLE()
+            )
+        );
         vm.prank(security);
         t.setParticipants(_a(alice), true); // security only revokes, cannot approve
     }
@@ -80,6 +94,7 @@ contract GuardedUnitTest is Test {
         vm.prank(genesis);
         t.transfer(bob, 1 ether); // bob not onboarded -> blocked in BOOTSTRAP
     }
+
     function test_Bootstrap_ToApproved_Ok() public {
         vm.prank(ops);
         t.setParticipants(_a(alice), true);
@@ -108,6 +123,7 @@ contract GuardedUnitTest is Test {
         t.transfer(bob, 10 ether);
         assertEq(t.balanceOf(bob), 10 ether);
     }
+
     function test_Guarded_ToUnknown_Blocked() public {
         _guarded();
         vm.expectRevert(abi.encodeWithSelector(G.TransferNotAllowed.selector, alice, poolish, alice));
@@ -141,6 +157,7 @@ contract GuardedUnitTest is Test {
         vm.prank(timelock);
         t.activateGuardedMode();
     }
+
     function test_Activate_Ok_WhenGenesisApproved() public {
         vm.prank(timelock);
         t.setSystemAccounts(_a(genesis), true);
@@ -149,6 +166,7 @@ contract GuardedUnitTest is Test {
         t.activateGuardedMode();
         assertEq(uint256(t.transferMode()), uint256(G.TransferMode.GUARDED));
     }
+
     function test_Activate_Ok_WhenGenesisEmptied() public {
         // onboard alice, move ALL supply out of genesis, then activate with genesis unclassified
         vm.prank(ops);
@@ -173,11 +191,13 @@ contract GuardedUnitTest is Test {
         t.activateGuardedMode();
         assertEq(uint256(t.transferMode()), uint256(G.TransferMode.GUARDED));
     }
+
     function test_Supply() public view {
         assertEq(t.totalSupply(), 1_000_000_000 ether);
         assertEq(t.cap(), 1_000_000_000 ether);
         assertEq(t.balanceOf(genesis), 1_000_000_000 ether);
     }
+
     function test_PausePrecedence() public {
         _guarded();
         vm.prank(security);
@@ -192,9 +212,11 @@ contract GuardedUnitTest is Test {
         vm.prank(security);
         t.pause();
         // Security holds PAUSER but NOT UNPAUSER -> cannot unpause
-        vm.expectRevert(abi.encodeWithSelector(
-            IAccessControl.AccessControlUnauthorizedAccount.selector, security, t.UNPAUSER_ROLE()
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, security, t.UNPAUSER_ROLE()
+            )
+        );
         vm.prank(security);
         t.unpause();
         // Timelock (U2 unpauser, reached via the Timelock delay off-chain) can unpause
