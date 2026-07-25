@@ -32,19 +32,23 @@
     ]
   },
   "dexPolicy": {
+    "forkEvidence": {
+      "blockNumber": 25603294,
+      "blockHash": "0xc26ad1083a91469905bb9b26c2dcde3efc0cf00561e04f34a23a1f8b3609c6a6"
+    },
     "factories": [
       {
         "name": "Uniswap V2 Factory",
         "kind": "UNISWAP_V2",
         "address": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-        "runtimeCodeHash": "TBD",
+        "runtimeCodeHash": "0xbab145d02e7005f0d84c6c1639d39b799b0ea16df99ebbdaf5a14d9da820b4e0",
         "ratified": false
       },
       {
         "name": "Uniswap V3 Factory",
         "kind": "UNISWAP_V3",
         "address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-        "runtimeCodeHash": "TBD",
+        "runtimeCodeHash": "0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69",
         "ratified": false
       }
     ],
@@ -52,7 +56,7 @@
       {
         "name": "Uniswap V4 PoolManager",
         "address": "0x000000000004444c5dc75cB358380D2e3dE08A90",
-        "runtimeCodeHash": "TBD",
+        "runtimeCodeHash": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293",
         "ratified": false
       }
     ],

@@ -4,7 +4,10 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {BiniTokenV2} from "../../src/BiniTokenV2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {ActorContract} from "../mocks/MarketMocks.sol";
 
 contract BiniTokenV2UpgradeMock is BiniTokenV2 {
     function version() external pure returns (uint256) {
@@ -14,17 +17,26 @@ contract BiniTokenV2UpgradeMock is BiniTokenV2 {
 
 contract UpgradeDummyContract {}
 
+contract WrongUUID {
+    function proxiableUUID() external pure returns (bytes32) {
+        return keccak256("WRONG_UUID");
+    }
+}
+
 contract UpgradeStatePreservationTest is Test {
     BiniTokenV2 internal token;
 
-    address internal timelock = address(0x700);
-    address internal pauser = address(0x701);
-    address internal genesis = address(0x703);
+    address internal timelock;
+    address internal pauser;
+    address internal genesis;
     address internal alice = address(0xA11CE);
     address internal poolManager;
     address internal factory;
 
     function setUp() public {
+        timelock = address(new ActorContract());
+        pauser = address(new ActorContract());
+        genesis = address(new ActorContract());
         BiniTokenV2 impl = new BiniTokenV2();
         token = BiniTokenV2(
             address(
@@ -46,6 +58,8 @@ contract UpgradeStatePreservationTest is Test {
         vm.stopPrank();
         vm.prank(genesis);
         token.transfer(alice, 123 ether);
+        vm.prank(alice);
+        token.approve(poolManager, 77 ether);
         vm.prank(pauser);
         token.pause();
 
@@ -55,6 +69,7 @@ contract UpgradeStatePreservationTest is Test {
 
         assertEq(BiniTokenV2UpgradeMock(address(token)).version(), 2);
         assertEq(token.balanceOf(alice), 123 ether);
+        assertEq(token.allowance(alice, poolManager), 77 ether);
         assertEq(token.totalSupply(), token.MAX_SUPPLY());
         assertEq(uint256(token.marketState()), uint256(BiniTokenV2.MarketState.PRE_MARKET));
         assertTrue(token.isMarketInfrastructure(poolManager));
@@ -72,5 +87,35 @@ contract UpgradeStatePreservationTest is Test {
         );
         vm.prank(alice);
         token.upgradeToAndCall(address(next), "");
+    }
+
+    function test_NonUUPSImplementationIsRejected() public {
+        UpgradeDummyContract invalid = new UpgradeDummyContract();
+        vm.expectRevert(abi.encodeWithSelector(ERC1967Utils.ERC1967InvalidImplementation.selector, address(invalid)));
+        vm.prank(timelock);
+        token.upgradeToAndCall(address(invalid), "");
+    }
+
+    function test_WrongProxiableUUIDIsRejected() public {
+        WrongUUID invalid = new WrongUUID();
+        vm.expectRevert(
+            abi.encodeWithSelector(UUPSUpgradeable.UUPSUnsupportedProxiableUUID.selector, keccak256("WRONG_UUID"))
+        );
+        vm.prank(timelock);
+        token.upgradeToAndCall(address(invalid), "");
+    }
+
+    function test_DirectImplementationUpgradeCallIsRejected() public {
+        BiniTokenV2 implementation = new BiniTokenV2();
+        BiniTokenV2UpgradeMock next = new BiniTokenV2UpgradeMock();
+        vm.expectRevert(UUPSUpgradeable.UUPSUnauthorizedCallContext.selector);
+        vm.prank(timelock);
+        implementation.upgradeToAndCall(address(next), "");
+    }
+
+    function test_ZeroImplementationIsRejectedByAuthorization() public {
+        vm.expectRevert(BiniTokenV2.ZeroAddress.selector);
+        vm.prank(timelock);
+        token.upgradeToAndCall(address(0), "");
     }
 }

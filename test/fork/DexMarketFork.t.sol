@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {BiniTokenV2} from "../../src/BiniTokenV2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ActorContract} from "../mocks/MarketMocks.sol";
 
 interface IUniswapV2Factory {
     function createPair(address tokenA, address tokenB) external returns (address pair);
@@ -21,6 +22,12 @@ contract ForkMockToken is ERC20 {
 }
 
 contract DexMarketForkTest is Test {
+    uint256 internal constant FORK_BLOCK = 25_603_294;
+    bytes32 internal constant V2_FACTORY_CODE_HASH = 0xbab145d02e7005f0d84c6c1639d39b799b0ea16df99ebbdaf5a14d9da820b4e0;
+    bytes32 internal constant V3_FACTORY_CODE_HASH = 0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69;
+    bytes32 internal constant V4_POOL_MANAGER_CODE_HASH =
+        0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293;
+
     address internal constant V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
     address internal constant V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
     address internal constant V4_POOL_MANAGER = 0x000000000004444c5dc75cB358380D2e3dE08A90;
@@ -28,13 +35,16 @@ contract DexMarketForkTest is Test {
     BiniTokenV2 internal token;
     ForkMockToken internal quote;
 
-    address internal timelock = address(0x700);
-    address internal pauser = address(0x701);
-    address internal genesis = address(0x703);
+    address internal timelock;
+    address internal pauser;
+    address internal genesis;
     address internal alice = address(0xA11CE);
 
     function setUp() public {
-        vm.createSelectFork("https://ethereum-rpc.publicnode.com");
+        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://rpc.flashbots.net")), FORK_BLOCK);
+        timelock = address(new ActorContract());
+        pauser = address(new ActorContract());
+        genesis = address(new ActorContract());
         BiniTokenV2 impl = new BiniTokenV2();
         token = BiniTokenV2(
             address(
@@ -55,6 +65,13 @@ contract DexMarketForkTest is Test {
 
         vm.prank(genesis);
         token.transfer(alice, 100_000 ether);
+    }
+
+    function test_ForkEvidenceMatchesGovernanceManifest() public view {
+        assertEq(block.number, FORK_BLOCK);
+        assertEq(V2_FACTORY.codehash, V2_FACTORY_CODE_HASH);
+        assertEq(V3_FACTORY.codehash, V3_FACTORY_CODE_HASH);
+        assertEq(V4_POOL_MANAGER.codehash, V4_POOL_MANAGER_CODE_HASH);
     }
 
     function test_MainnetV2PairBlockedPreMarketAndAllowedAfterOpen() public {

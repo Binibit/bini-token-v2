@@ -2,3 +2,6 @@ out/
 cache/
 broadcast/
 .env
+node_modules/
+lcov.info
+coverage-summary.json

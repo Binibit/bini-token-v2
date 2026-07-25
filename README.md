@@ -1,77 +1,87 @@
 # BINI Token V2
 
-Canonical Ethereum implementation candidate for Binibit (`BINI`).
+Ethereum-canonical implementation of Binibit (`BINI`).
 
-## Product Model
+## Product Contract
 
 `BINI` is freely transferable between users and system contracts from genesis.
-The only temporary restriction is the movement of real BINI into recognized
-DEX/AMM infrastructure:
+During `PRE_MARKET`, only transfers into recognized DEX/AMM destinations are
+blocked. A Timelock can call `openMarket()` once:
 
 ```text
 PRE_MARKET  -- Timelock: openMarket() -->  OPEN_MARKET
 ```
 
-- `PRE_MARKET`: wallet, Safe, custody, vesting, rewards, migration and OTC
-  transfers use the standard ERC-20 flow. Transfers into configured DEX
-  infrastructure and recognized V2/V3 pools are blocked.
-- `OPEN_MARKET`: the DEX check is bypassed forever. BINI behaves as a standard
-  permissionless ERC-20, subject only to the independent emergency global pause.
+After opening, all market checks are permanently bypassed. The token remains
+subject only to the independent emergency pause and the explicitly required
+Timelock-controlled UUPS upgrade authority.
 
-There is no participant allowlist, KYC, transfer tax, max-wallet rule, runtime
-mint, burn, confiscation, forced transfer or post-opening blacklist.
+There is no participant allowlist, KYC, tax, max-wallet rule, runtime mint,
+burn, confiscation, forced transfer or post-opening blacklist.
 
 ## Fixed Properties
 
-- Name: `Binibit`
-- Symbol: `BINI`
-- Decimals: `18`
-- Supply: `1,000,000,000 BINI`, minted once during initialization
-- Upgrade model: UUPS, authorized by the governance Timelock
-- Emergency pause: Security Safe pauses; Timelock unpauses
+| Property | Value |
+| --- | --- |
+| Name / symbol / decimals | `Binibit` / `BINI` / `18` |
+| Supply | `1,000,000,000 BINI`, minted once |
+| Canonical chain | Ethereum |
+| Upgrade model | ERC-1967 UUPS, Timelock-authorized |
+| Emergency pause | Security Safe pauses, Timelock unpauses |
+| Storage | ERC-7201 namespace |
 
 ## Security Boundary
 
-The token automatically recognizes deployed V2/V3-style pools only when their
-factory has been registered by governance. V4 `PoolManager`, routers, liquidity
-managers and gateways are explicit infrastructure entries.
-
-An ERC-20 cannot reliably identify every unknown or future AMM. In particular,
-an undeployed CREATE2 pool address can be pre-funded while it has no code and is
-indistinguishable from an ordinary wallet address. The absolute universal
-requirement is therefore `BLOCKED`; this repository implements the narrow,
-no-user-allowlist compromise described in
-[`PRE_MARKET_DEX_POLICY.md`](docs/architecture/PRE_MARKET_DEX_POLICY.md).
+Registered V2/V3 factories confirm deployed pools. V4 `PoolManager`, routers,
+liquidity managers and gateways are explicit infrastructure entries. Unknown
+AMMs and undeployed CREATE2 destinations cannot be universally identified by an
+ERC-20 without restricting ordinary transfers. The absolute universal claim is
+therefore `BLOCKED`; the implemented minimal compromise is documented in
+[PRE_MARKET_DEX_POLICY.md](docs/architecture/PRE_MARKET_DEX_POLICY.md).
 
 ## Status
 
-`IMPLEMENTATION_CANDIDATE_NOT_DEPLOY_AUTHORIZED`
+`ENGINEERING_FINAL_CANDIDATE_NOT_DEPLOY_AUTHORIZED`
 
-The implementation and tests are ready for independent review. Mainnet
-deployment still requires ratified governance addresses, reproducible
-deployment evidence and an external audit.
+The implementation, internal review, release gates and test evidence are
+complete. Mainnet deployment still requires ratified governance addresses,
+Sepolia rehearsal evidence and an independent external audit.
 
-## Build And Test
+## Verify
 
-Foundry `1.5.1` and Solidity `0.8.24` are pinned for the current candidate.
+Prerequisites: Foundry `1.5.1`, Solidity `0.8.24`, Node.js `22`, `jq`, and
+Slither `0.11.4`.
 
 ```sh
 git submodule update --init --recursive
-forge fmt --check
-forge build --sizes
-forge test --no-match-path "test/fork/*"
-forge test --match-path "test/fork/*"
+npm ci --ignore-scripts
+make release-check
 ```
 
-The fork suite uses `https://ethereum-rpc.publicnode.com`.
+Useful narrower commands:
 
-## Repository Layout
+```sh
+make test-local
+make test-fork
+make coverage
+make audit
+make artifacts
+```
 
-- `src/BiniTokenV2.sol`: canonical token implementation
-- `test/`: unit, invariant, governance, upgrade and mainnet-fork evidence
-- `script/DeployBiniTokenV2.s.sol`: environment-driven UUPS deployment
-- `config/governance-manifest.rehearsal.json`: non-production governance template
-- `docs/PRODUCT_REQUIREMENT.md`: product canon
-- `docs/architecture/PRE_MARKET_DEX_POLICY.md`: feasibility and threat boundary
-- `docs/runbooks/MARKET_OPEN.md`: configuration and one-way opening procedure
-- `artifacts/release/`: generated ABI, selectors and storage layout
+The fork suite is pinned to Ethereum block `25,603,294` and verifies the code
+hashes in the rehearsal governance manifest. Set `MAINNET_RPC_URL` to a
+controlled archive endpoint; Flashbots is only the public fallback.
+
+## Project Map
+
+- `src/`: canonical token implementation
+- `test/`: unit, E2E, invariant, governance, upgrade and pinned fork suites
+- `script/`: environment-driven ERC-1967/UUPS deployment
+- `config/`: governance rehearsal manifest and ERC-7201 schema
+- `policy/`: allowed and prohibited public function policy
+- `artifacts/release/`: reproducibly generated ABI, selectors and build hashes
+- `tools/`: release, coverage and artifact consistency gates
+- `docs/`: requirements, architecture, security evidence and operator runbooks
+
+Start with [docs/INDEX.md](docs/INDEX.md). Security reports follow
+[SECURITY.md](SECURITY.md).

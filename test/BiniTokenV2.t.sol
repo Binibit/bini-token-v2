@@ -7,61 +7,27 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-
-contract PlainContractWallet {}
-
-contract MockV2Pool {
-    address public immutable factory;
-    address public immutable token0;
-    address public immutable token1;
-
-    constructor(address tokenA, address tokenB) {
-        factory = msg.sender;
-        token0 = tokenA;
-        token1 = tokenB;
-    }
-}
-
-contract MockV2Factory {
-    mapping(address => mapping(address => address)) public getPair;
-
-    function createPair(address tokenA, address tokenB) external returns (address pair) {
-        pair = address(new MockV2Pool(tokenA, tokenB));
-        getPair[tokenA][tokenB] = pair;
-        getPair[tokenB][tokenA] = pair;
-    }
-}
-
-contract MockV3Pool {
-    address public immutable factory;
-    address public immutable token0;
-    address public immutable token1;
-    uint24 public immutable fee;
-
-    constructor(address tokenA, address tokenB, uint24 poolFee) {
-        factory = msg.sender;
-        token0 = tokenA;
-        token1 = tokenB;
-        fee = poolFee;
-    }
-}
-
-contract MockV3Factory {
-    mapping(address => mapping(address => mapping(uint24 => address))) public getPool;
-
-    function createPool(address tokenA, address tokenB, uint24 fee) external returns (address pool) {
-        pool = address(new MockV3Pool(tokenA, tokenB, fee));
-        getPool[tokenA][tokenB][fee] = pool;
-        getPool[tokenB][tokenA][fee] = pool;
-    }
-}
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {
+    ActorContract,
+    MockV2Factory,
+    MockV2Pool,
+    MockV3Factory,
+    ReturnBombV2Factory,
+    ReturnBombV2Pool,
+    RevertingProbeWallet,
+    ShortReturnV2Factory
+} from "./mocks/MarketMocks.sol";
 
 contract BiniTokenV2Test is Test {
     BiniTokenV2 internal token;
 
-    address internal timelock = address(0x700);
-    address internal pauser = address(0x701);
-    address internal genesis = address(0x703);
+    address internal timelock;
+    address internal pauser;
+    address internal genesis;
     address internal alice = address(0xA11CE);
     address internal bob = address(0xB0B);
     address internal otherToken = address(0xC01);
@@ -69,6 +35,9 @@ contract BiniTokenV2Test is Test {
     uint256 internal constant MAX = 1_000_000_000 ether;
 
     function setUp() public {
+        timelock = address(new ActorContract());
+        pauser = address(new ActorContract());
+        genesis = address(new ActorContract());
         BiniTokenV2 impl = new BiniTokenV2();
         token = BiniTokenV2(
             address(
@@ -121,6 +90,24 @@ contract BiniTokenV2Test is Test {
         new ERC1967Proxy(address(impl), data);
     }
 
+    function test_InitializeRejectsEoaGovernanceAddresses() public {
+        BiniTokenV2 impl = new BiniTokenV2();
+        vm.expectRevert(abi.encodeWithSelector(BiniTokenV2.NotContract.selector, alice));
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(BiniTokenV2.initialize, (alice, pauser, genesis, uint48(3 days)))
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(BiniTokenV2.NotContract.selector, alice));
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(BiniTokenV2.initialize, (timelock, alice, genesis, uint48(3 days)))
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(BiniTokenV2.NotContract.selector, alice));
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(BiniTokenV2.initialize, (timelock, pauser, alice, uint48(3 days)))
+        );
+    }
+
     function test_PreMarketWalletToWalletIsFree() public {
         vm.prank(alice);
         token.transfer(bob, 123 ether);
@@ -128,7 +115,7 @@ contract BiniTokenV2Test is Test {
     }
 
     function test_PreMarketWalletToContractWalletIsFree() public {
-        PlainContractWallet safe = new PlainContractWallet();
+        ActorContract safe = new ActorContract();
         vm.prank(alice);
         token.transfer(address(safe), 123 ether);
         assertEq(token.balanceOf(address(safe)), 123 ether);
@@ -157,8 +144,30 @@ contract BiniTokenV2Test is Test {
         assertEq(token.nonces(owner), 1);
     }
 
+    function test_ExpiredPermitIsRejected() public {
+        uint256 deadline = block.timestamp - 1;
+        vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612ExpiredSignature.selector, deadline));
+        token.permit(alice, bob, 1 ether, deadline, 27, bytes32(0), bytes32(0));
+    }
+
+    function test_PermitCannotBeReplayed() public {
+        uint256 ownerKey = 0xA11CE5EED;
+        address owner = vm.addr(ownerKey);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 typehash =
+            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(typehash, owner, bob, 42 ether, 0, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, digest);
+
+        token.permit(owner, bob, 42 ether, deadline, v, r, s);
+        vm.expectRevert();
+        token.permit(owner, bob, 42 ether, deadline, v, r, s);
+        assertEq(token.nonces(owner), 1);
+    }
+
     function test_ExplicitInfrastructureBlockedPreMarket() public {
-        address poolManager = address(new PlainContractWallet());
+        address poolManager = address(new ActorContract());
         vm.prank(timelock);
         token.setMarketInfrastructure(_one(poolManager), true);
 
@@ -168,7 +177,7 @@ contract BiniTokenV2Test is Test {
     }
 
     function test_ExplicitInfrastructureBlockedThroughTransferFrom() public {
-        address liquidityManager = address(new PlainContractWallet());
+        address liquidityManager = address(new ActorContract());
         vm.prank(timelock);
         token.setMarketInfrastructure(_one(liquidityManager), true);
         vm.prank(alice);
@@ -180,7 +189,7 @@ contract BiniTokenV2Test is Test {
     }
 
     function test_ExplicitInfrastructureCanBeRemovedPreMarket() public {
-        address custodyMistake = address(new PlainContractWallet());
+        address custodyMistake = address(new ActorContract());
         vm.startPrank(timelock);
         token.setMarketInfrastructure(_one(custodyMistake), true);
         token.setMarketInfrastructure(_one(custodyMistake), false);
@@ -199,6 +208,22 @@ contract BiniTokenV2Test is Test {
         vm.expectRevert(abi.encodeWithSelector(BiniTokenV2.NotContract.selector, bob));
         vm.prank(timelock);
         token.setDexFactory(bob, BiniTokenV2.FactoryKind.UNISWAP_V2);
+    }
+
+    function test_ZeroAddressConfigurationIsRejectedAtomically() public {
+        address validManager = address(new ActorContract());
+        address[] memory accounts = new address[](2);
+        accounts[0] = validManager;
+        accounts[1] = address(0);
+
+        vm.expectRevert(BiniTokenV2.ZeroAddress.selector);
+        vm.prank(timelock);
+        token.setMarketInfrastructure(accounts, true);
+        assertFalse(token.isMarketInfrastructure(validManager));
+
+        vm.expectRevert(BiniTokenV2.ZeroAddress.selector);
+        vm.prank(timelock);
+        token.setDexFactory(address(0), BiniTokenV2.FactoryKind.UNISWAP_V2);
     }
 
     function test_RegisteredV2FactoryPoolAutomaticallyBlocked() public {
@@ -227,6 +252,41 @@ contract BiniTokenV2Test is Test {
         token.transfer(pool, 1 ether);
     }
 
+    function test_FactoryCanBeRemovedBeforeMarketOpen() public {
+        MockV2Factory factory = new MockV2Factory();
+        address pair = factory.createPair(address(token), otherToken);
+        vm.startPrank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.NONE);
+        vm.stopPrank();
+
+        assertFalse(token.isRecognizedDexPool(pair));
+        vm.prank(alice);
+        token.transfer(pair, 1 ether);
+    }
+
+    function test_RegisteredFactoryPoolWithoutBiniIsNotBlocked() public {
+        MockV2Factory factory = new MockV2Factory();
+        address pair = factory.createPair(address(0xC02), otherToken);
+        vm.prank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+
+        assertFalse(token.isRecognizedDexPool(pair));
+        vm.prank(alice);
+        token.transfer(pair, 1 ether);
+    }
+
+    function test_V3FactoryDoesNotMisclassifyPoolWithoutFeeGetter() public {
+        MockV2Factory poolDeployer = new MockV2Factory();
+        address pair = poolDeployer.createPair(address(token), otherToken);
+        vm.prank(timelock);
+        token.setDexFactory(address(poolDeployer), BiniTokenV2.FactoryKind.UNISWAP_V3);
+
+        assertFalse(token.isRecognizedDexPool(pair));
+        vm.prank(alice);
+        token.transfer(pair, 1 ether);
+    }
+
     function test_UnknownFactoryPoolRemainsOrdinaryContract() public {
         MockV2Factory factory = new MockV2Factory();
         address pool = factory.createPair(address(token), otherToken);
@@ -248,8 +308,40 @@ contract BiniTokenV2Test is Test {
         token.transfer(address(lookalike), 1 ether);
     }
 
+    function test_ReturnBombFactoryCannotDenialOfServicePoolDetection() public {
+        ReturnBombV2Factory factory = new ReturnBombV2Factory();
+        ReturnBombV2Pool pair = new ReturnBombV2Pool(address(factory), address(token), otherToken);
+        factory.setPair(address(pair));
+        vm.prank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+
+        assertTrue(token.isRecognizedDexPool(address(pair)));
+        vm.expectRevert(abi.encodeWithSelector(BiniTokenV2.DexMarketClosed.selector, address(pair)));
+        vm.prank(alice);
+        token.transfer(address(pair), 1 ether);
+    }
+
+    function test_ShortFactoryReturnDoesNotBreakOrdinaryTransfer() public {
+        ShortReturnV2Factory factory = new ShortReturnV2Factory();
+        ReturnBombV2Pool pair = new ReturnBombV2Pool(address(factory), address(token), otherToken);
+        vm.prank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+
+        assertFalse(token.isRecognizedDexPool(address(pair)));
+        vm.prank(alice);
+        token.transfer(address(pair), 1 ether);
+        assertEq(token.balanceOf(address(pair)), 1 ether);
+    }
+
+    function test_RevertingContractProbeRemainsFreelyTransferable() public {
+        RevertingProbeWallet wallet = new RevertingProbeWallet();
+        vm.prank(alice);
+        token.transfer(address(wallet), 1 ether);
+        assertEq(token.balanceOf(address(wallet)), 1 ether);
+    }
+
     function test_OnlyMarketManagerCanConfigureOrOpen() public {
-        address manager = address(new PlainContractWallet());
+        address manager = address(new ActorContract());
         bytes memory unauthorized = abi.encodeWithSelector(
             IAccessControl.AccessControlUnauthorizedAccount.selector, alice, token.MARKET_MANAGER_ROLE()
         );
@@ -263,7 +355,7 @@ contract BiniTokenV2Test is Test {
     }
 
     function test_OpenMarketIsIrreversibleAndDisablesAllDexChecks() public {
-        address poolManager = address(new PlainContractWallet());
+        address poolManager = address(new ActorContract());
         vm.prank(timelock);
         token.setMarketInfrastructure(_one(poolManager), true);
         vm.prank(timelock);
@@ -281,6 +373,10 @@ contract BiniTokenV2Test is Test {
         vm.expectRevert(BiniTokenV2.MarketAlreadyOpen.selector);
         vm.prank(timelock);
         token.setMarketInfrastructure(_one(poolManager), false);
+
+        vm.expectRevert(BiniTokenV2.MarketAlreadyOpen.selector);
+        vm.prank(timelock);
+        token.setDexFactory(poolManager, BiniTokenV2.FactoryKind.UNISWAP_V2);
     }
 
     function test_MarketStateUsesDocumentedErc7201Slot() public {
@@ -296,7 +392,7 @@ contract BiniTokenV2Test is Test {
     }
 
     function test_PauseIsIndependentAndTakesPrecedence() public {
-        address poolManager = address(new PlainContractWallet());
+        address poolManager = address(new ActorContract());
         vm.prank(timelock);
         token.setMarketInfrastructure(_one(poolManager), true);
         vm.prank(pauser);
@@ -312,6 +408,24 @@ contract BiniTokenV2Test is Test {
         token.unpause();
         vm.prank(alice);
         token.transfer(poolManager, 1 ether);
+    }
+
+    function test_ApprovalsRemainAvailableWhileTransfersArePaused() public {
+        vm.prank(pauser);
+        token.pause();
+        vm.prank(alice);
+        token.approve(bob, 1 ether);
+        assertEq(token.allowance(alice, bob), 1 ether);
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(bob);
+        token.transferFrom(alice, genesis, 1 ether);
+    }
+
+    function test_TransferToZeroAddressUsesStandardErc20Error() public {
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InvalidReceiver.selector, address(0)));
+        vm.prank(alice);
+        token.transfer(address(0), 1 ether);
     }
 
     function test_NoRuntimeMintOrBurnSurface() public {

@@ -7,6 +7,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 contract DeployBiniTokenV2 is Script {
     function run() external returns (BiniTokenV2 implementation, BiniTokenV2 token) {
+        uint256 expectedChainId = vm.envUint("EXPECTED_CHAIN_ID");
+        require(block.chainid == expectedChainId, "UNEXPECTED_CHAIN_ID");
+
         address adminTimelock = vm.envAddress("ADMIN_TIMELOCK");
         address emergencyPauserSafe = vm.envAddress("EMERGENCY_PAUSER_SAFE");
         address genesisDistributionSafe = vm.envAddress("GENESIS_DISTRIBUTION_SAFE");

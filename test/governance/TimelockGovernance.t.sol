@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {BiniTokenV2} from "../../src/BiniTokenV2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {ActorContract} from "../mocks/MarketMocks.sol";
 
 contract TimelockGovernanceTest is Test {
     uint256 internal constant DELAY = 2 days;
@@ -14,10 +15,12 @@ contract TimelockGovernanceTest is Test {
 
     address internal proposer = address(0xA01);
     address internal executor = address(0xE01);
-    address internal pauser = address(0x701);
-    address internal genesis = address(0x703);
+    address internal pauser;
+    address internal genesis;
 
     function setUp() public {
+        pauser = address(new ActorContract());
+        genesis = address(new ActorContract());
         address[] memory proposers = new address[](1);
         proposers[0] = proposer;
         address[] memory executors = new address[](1);

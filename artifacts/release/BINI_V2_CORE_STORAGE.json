@@ -5,31 +5,31 @@
   },
   "erc7201Namespaces": {
     "binibit.storage.BiniTokenV2": {
-      "slot": "0xb919b0c0062827d20ad4293e3018837a27a74d3431061c198bdaffa48b665b00",
-      "formula": "keccak256(abi.encode(uint256(keccak256(\"binibit.storage.BiniTokenV2\")) - 1)) & ~bytes32(uint256(0xff))",
-      "struct": "BiniTokenV2Storage",
       "fields": [
         {
+          "encoding": "inplace",
           "name": "marketState",
-          "relativeSlot": 0,
           "offset": 0,
-          "type": "enum BiniTokenV2.MarketState",
-          "encoding": "inplace"
+          "relativeSlot": 0,
+          "type": "enum BiniTokenV2.MarketState"
         },
         {
+          "encoding": "mapping",
           "name": "factoryKind",
           "relativeSlot": 1,
-          "type": "mapping(address => enum BiniTokenV2.FactoryKind)",
-          "encoding": "mapping"
+          "type": "mapping(address => enum BiniTokenV2.FactoryKind)"
         },
         {
+          "encoding": "mapping",
           "name": "marketInfrastructure",
           "relativeSlot": 2,
-          "type": "mapping(address => bool)",
-          "encoding": "mapping"
+          "type": "mapping(address => bool)"
         }
-      ]
+      ],
+      "formula": "keccak256(abi.encode(uint256(keccak256(\"binibit.storage.BiniTokenV2\")) - 1)) & ~bytes32(uint256(0xff))",
+      "slot": "0xb919b0c0062827d20ad4293e3018837a27a74d3431061c198bdaffa48b665b00",
+      "struct": "BiniTokenV2Storage"
     }
   },
-  "note": "Solidity 0.8.24 reports no conventional storage because BINI uses an explicit ERC-7201 namespace. The namespace layout above is asserted by tests and must be validated before every upgrade."
+  "note": "Solidity reports no conventional storage because BINI uses an explicit ERC-7201 namespace. The namespace schema is version-controlled and must be validated before every upgrade."
 }

@@ -32,6 +32,7 @@ interface IUniswapV3FactoryLike {
  * @dev This policy cannot identify every present or future AMM. It covers explicitly registered
  *      infrastructure and deployed V2/V3-style pools whose factory governance has registered.
  *      Unknown AMMs and pre-funded undeployed CREATE2 addresses are outside the provable boundary.
+ * @custom:oz-upgrades
  */
 contract BiniTokenV2 is
     Initializable,
@@ -102,7 +103,12 @@ contract BiniTokenV2 is
         address genesisDistributionSafe,
         uint48 adminTransferDelay
     ) external initializer {
-        if (adminTimelock == address(0) || emergencyPauserSafe == address(0) || genesisDistributionSafe == address(0)) revert ZeroAddress();
+        if (adminTimelock == address(0) || emergencyPauserSafe == address(0) || genesisDistributionSafe == address(0)) {
+            revert ZeroAddress();
+        }
+        if (adminTimelock.code.length == 0) revert NotContract(adminTimelock);
+        if (emergencyPauserSafe.code.length == 0) revert NotContract(emergencyPauserSafe);
+        if (genesisDistributionSafe.code.length == 0) revert NotContract(genesisDistributionSafe);
 
         __ERC20_init("Binibit", "BINI");
         __ERC20Permit_init("Binibit");
@@ -259,8 +265,16 @@ contract BiniTokenV2 is
     }
 
     function _readFactoryAddress(address factory, bytes memory callData) private view returns (address result) {
-        (bool ok, bytes memory data) = factory.staticcall{gas: PROBE_GAS}(callData);
-        if (ok && data.length >= 32) result = abi.decode(data, (address));
+        bool ok;
+        bytes32 word;
+        uint256 probeGas = PROBE_GAS;
+        assembly {
+            let ptr := mload(0x40)
+            ok := staticcall(probeGas, factory, add(callData, 32), mload(callData), ptr, 32)
+            if lt(returndatasize(), 32) { ok := 0 }
+            word := mload(ptr)
+        }
+        if (ok) result = address(uint160(uint256(word)));
     }
 
     function _requirePreMarket() private view {

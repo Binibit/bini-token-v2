@@ -10,45 +10,76 @@ on:
 env:
   FOUNDRY_PROFILE: ci
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
-    name: Foundry project
+    name: Release gates
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
           submodules: recursive
 
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
         with:
           version: 1.5.1
 
-      - name: Show Forge version
-        run: forge --version
+      - name: Install validation tools
+        run: |
+          npm ci --ignore-scripts
+          pipx install slither-analyzer==0.11.4
 
-      - name: Run Forge fmt
+      - name: Check formatting
         run: forge fmt --check
 
-      - name: Run Forge build
+      - name: Build
         run: forge build --sizes
 
+      - name: Validate UUPS implementation
+        run: npm run validate:upgrades
+
+      - name: Run static analysis
+        run: >-
+          slither .
+          --filter-paths 'lib|test|script'
+          --exclude-dependencies
+          --exclude assembly,low-level-calls,unindexed-event-address
+
+      - name: Check release artifacts and selector policy
+        run: tools/release-artifacts.sh check
+
       - name: Run local tests
-        run: forge test --no-match-path "test/fork/*" -vvv
+        run: forge test --no-match-path "test/fork/*" -vv
 
-      - name: Run mainnet-fork tests
-        run: forge test --match-path "test/fork/*" -vvv
+      - name: Run pinned mainnet-fork tests
+        env:
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL || 'https://rpc.flashbots.net' }}
+        run: forge test --match-path "test/fork/*" -vv
 
-      - name: Validate JSON artifacts
+      - name: Enforce core coverage
+        run: tools/coverage-gate.sh
+
+      - name: Check dependency advisories
+        run: npm audit --audit-level=high
+
+      - name: Validate JSON
         run: >-
           jq empty
-          artifacts/release/BINI_V2_BUILD.json
-          artifacts/release/BINI_V2_CORE_ABI.json
-          artifacts/release/BINI_V2_CORE_SELECTORS.json
-          artifacts/release/BINI_V2_CORE_STORAGE.json
-          config/governance-manifest.rehearsal.json
-          policy/allowed-selectors.json
-          policy/prohibited-selectors.json
+          artifacts/release/*.json
+          config/*.json
+          policy/*.json

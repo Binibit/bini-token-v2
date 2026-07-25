@@ -1,0 +1,27 @@
+{
+  "namespace": "binibit.storage.BiniTokenV2",
+  "slot": "0xb919b0c0062827d20ad4293e3018837a27a74d3431061c198bdaffa48b665b00",
+  "formula": "keccak256(abi.encode(uint256(keccak256(\"binibit.storage.BiniTokenV2\")) - 1)) & ~bytes32(uint256(0xff))",
+  "struct": "BiniTokenV2Storage",
+  "fields": [
+    {
+      "name": "marketState",
+      "relativeSlot": 0,
+      "offset": 0,
+      "type": "enum BiniTokenV2.MarketState",
+      "encoding": "inplace"
+    },
+    {
+      "name": "factoryKind",
+      "relativeSlot": 1,
+      "type": "mapping(address => enum BiniTokenV2.FactoryKind)",
+      "encoding": "mapping"
+    },
+    {
+      "name": "marketInfrastructure",
+      "relativeSlot": 2,
+      "type": "mapping(address => bool)",
+      "encoding": "mapping"
+    }
+  ]
+}

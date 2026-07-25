@@ -10,6 +10,7 @@ Deploy the implementation and atomically initialize the UUPS proxy using
 
 Required values:
 
+- `EXPECTED_CHAIN_ID`;
 - `ADMIN_TIMELOCK`;
 - `EMERGENCY_PAUSER_SAFE`;
 - `GENESIS_DISTRIBUTION_SAFE`;
@@ -33,10 +34,12 @@ Ethereum candidates used by the fork tests:
 
 | Component | Candidate address |
 | --- | --- |
-| Uniswap V2 Factory | `0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f` |
-| Uniswap V3 Factory | `0x1F98431c8aD98523631AE4a59f267346ea31F984` |
-| Uniswap V4 PoolManager | `0x000000000004444c5dc75cB358380D2e3dE08A90` |
+| Uniswap V2 Factory | `0x5C69...aA6f`, code hash `0xbab145...b4e0` |
+| Uniswap V3 Factory | `0x1F984...F984`, code hash `0x4d7b85...fd69` |
+| Uniswap V4 PoolManager | `0x000000...8A90`, code hash `0x785f10...1293` |
 
+The full addresses and hashes are recorded in
+`config/governance-manifest.rehearsal.json` at pinned block `25,603,294`.
 Candidate addresses are not automatically production-ratified.
 
 ## 3. PRE_MARKET Verification

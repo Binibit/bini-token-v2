@@ -26,6 +26,8 @@
 | Suite | Purpose |
 | --- | --- |
 | `test/BiniTokenV2.t.sol` | metadata, roles, free transfers, DEX blocking, opening, pause, forbidden surface |
+| `test/script/DeployBiniTokenV2.t.sol` | environment validation and initialized proxy deployment |
+| `test/e2e/ReleaseLifecycle.t.sol` | complete deployment-to-upgrade release lifecycle |
 | `test/invariant/BiniTokenV2Invariant.t.sol` | fixed supply, conservation, monotonic opening |
 | `test/governance/TimelockGovernance.t.sol` | real delayed Timelock execution |
 | `test/upgrade/UpgradeStatePreservation.t.sol` | UUPS authorization and namespaced-state preservation |
@@ -35,9 +37,12 @@ The exact command results are recorded in the release commit and GitHub Actions.
 
 Current release run:
 
-- local suites: `28 passed, 0 failed`;
-- mainnet-fork suite: `3 passed, 0 failed`;
-- total: `31 passed, 0 failed`.
+- local suites: `49 passed, 0 failed`;
+- mainnet-fork suite: `4 passed, 0 failed`;
+- total: `53 passed, 0 failed`;
+- core coverage: `100%` lines, statements, branches and functions;
+- Slither `0.11.4`: `0` findings under documented exclusions;
+- OpenZeppelin Upgrades Core `1.46.0`: validation passed.
 
 ## Residual Risks
 
@@ -46,8 +51,8 @@ Current release run:
 - unknown AMMs remain ordinary contract recipients until registered;
 - governance can misclassify a contract wallet as infrastructure;
 - UUPS governance can replace token logic;
-- public-RPC fork tests are mutable and should be rerun against a pinned,
-  production-controlled archive endpoint before deployment.
+- public RPC availability is external; deployment sign-off must rerun the pinned
+  block and code hashes against a production-controlled archive endpoint.
 
 ## Remaining Release Gates
 
@@ -55,6 +60,5 @@ Current release run:
 - ratify Timelock and default-admin delays;
 - ratify factories and infrastructure with runtime code hashes;
 - add reproducible deployment and explorer-verification evidence;
-- run independent storage-layout and upgrade validation;
 - complete external audit;
 - execute a Sepolia rehearsal and archive the transaction bundle.
