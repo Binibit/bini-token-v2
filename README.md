@@ -81,6 +81,7 @@ controlled archive endpoint; Flashbots is only the public fallback.
 - `policy/`: allowed and prohibited public function policy
 - `artifacts/release/`: reproducibly generated ABI, selectors and build hashes
 - `tools/`: release, coverage and artifact consistency gates
+- `.env.example`: non-secret Sepolia/mainnet deployment configuration template
 - `docs/`: requirements, architecture, security evidence and operator runbooks
 
 Start with [docs/INDEX.md](docs/INDEX.md). Security reports follow

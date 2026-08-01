@@ -44,6 +44,22 @@ Current release run:
 - Slither `0.11.4`: `0` findings under documented exclusions;
 - OpenZeppelin Upgrades Core `1.46.0`: validation passed.
 
+## Revalidation 2026-08-01
+
+- local `main` and `origin/main` were synchronized before the run;
+- `make release-check` passed again on the final contract tree;
+- `49` local tests and `4` pinned mainnet-fork tests passed;
+- core coverage remained `100%` for lines, statements, branches and functions;
+- Slither and OpenZeppelin upgrade validation passed again;
+- release ABI, selectors, bytecode hashes and storage schema remained consistent;
+- deployment preflight passed against local Anvil contract addresses and
+  rejected an EOA substituted for `ADMIN_TIMELOCK`.
+
+GitHub Actions run `30157823145` passed on release commit `522d0a0`. The contract,
+tests and release-artifact tree at finalization remained identical through
+`fa546cd`; later GitHub attempts ended with `startup_failure` before allocating
+any job and produced no test logs.
+
 ## Residual Risks
 
 - universal automatic AMM detection is impossible at the ERC-20 layer;

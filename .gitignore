@@ -5,3 +5,4 @@ broadcast/
 node_modules/
 lcov.info
 coverage-summary.json
+.DS_Store

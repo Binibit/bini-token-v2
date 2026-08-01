@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: build test test-local test-fork coverage audit artifacts release-check
+.PHONY: build test test-local test-fork coverage audit artifacts release-check deploy-preflight
 
 build:
 	forge build --sizes
@@ -25,3 +25,6 @@ artifacts:
 
 release-check:
 	tools/release-gate.sh
+
+deploy-preflight:
+	tools/deploy-preflight.sh

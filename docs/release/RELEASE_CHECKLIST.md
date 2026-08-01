@@ -25,6 +25,8 @@
 - [ ] Controlled archive RPC reproduces fork evidence
 - [ ] Sepolia deployment and full lifecycle rehearsal archived
 - [ ] Mainnet deployment transaction bundle independently simulated
+- [ ] Dedicated deployer keystore or hardware wallet prepared and funded
+- [ ] `make deploy-preflight` passes against the deployment RPC
 - [ ] Explorer verification inputs reproduced
 - [ ] Monitoring and incident ownership activated
 
