@@ -55,10 +55,10 @@ Current release run:
 - deployment preflight passed against local Anvil contract addresses and
   rejected an EOA substituted for `ADMIN_TIMELOCK`.
 
-GitHub Actions run `30157823145` passed on release commit `522d0a0`. The contract,
-tests and release-artifact tree at finalization remained identical through
-`fa546cd`; later GitHub attempts ended with `startup_failure` before allocating
-any job and produced no test logs.
+GitHub Actions run `30712720161` passed every release gate on commit `26da1ae`,
+including the pinned mainnet-fork suite. The preceding run exposed a pruned
+public Flashbots archive response; CI now prefers a configured archive RPC and
+retries independent public archive endpoints without weakening test assertions.
 
 ## Residual Risks
 
