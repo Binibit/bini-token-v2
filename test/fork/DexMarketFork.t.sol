@@ -41,7 +41,7 @@ contract DexMarketForkTest is Test {
     address internal alice = address(0xA11CE);
 
     function setUp() public {
-        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://rpc.flashbots.net")), FORK_BLOCK);
+        vm.createSelectFork(vm.envOr("MAINNET_RPC_URL", string("https://eth.drpc.org")), FORK_BLOCK);
         timelock = address(new ActorContract());
         pauser = address(new ActorContract());
         genesis = address(new ActorContract());

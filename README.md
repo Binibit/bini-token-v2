@@ -70,7 +70,8 @@ make artifacts
 
 The fork suite is pinned to Ethereum block `25,603,294` and verifies the code
 hashes in the rehearsal governance manifest. Set `MAINNET_RPC_URL` to a
-controlled archive endpoint; Flashbots is only the public fallback.
+controlled archive endpoint. Public archive endpoints are retry fallbacks, not
+deployment evidence.
 
 ## Project Map
 

@@ -11,7 +11,7 @@ test-local:
 	forge test --no-match-path 'test/fork/*' -vv
 
 test-fork:
-	forge test --match-path 'test/fork/*' -vv
+	tools/test-mainnet-fork.sh
 
 coverage:
 	tools/coverage-gate.sh

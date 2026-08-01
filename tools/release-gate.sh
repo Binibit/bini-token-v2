@@ -15,7 +15,7 @@ slither . \
   --exclude assembly,low-level-calls,unindexed-event-address
 tools/release-artifacts.sh check
 forge test --no-match-path 'test/fork/*' -vv
-forge test --match-path 'test/fork/*' -vv
+tools/test-mainnet-fork.sh
 tools/coverage-gate.sh
 
 jq empty \
