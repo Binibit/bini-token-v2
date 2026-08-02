@@ -69,6 +69,9 @@ jobs:
       - name: Run release CLI tests
         run: python3 -m unittest discover -s test_cli -p 'test_*.py' -v
 
+      - name: Run receipt-backed Anvil release rehearsal
+        run: tools/test-release-anvil.sh
+
       - name: Run pinned mainnet-fork tests
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
