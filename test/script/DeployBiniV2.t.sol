@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {DeployBiniV2} from "../../script/DeployBiniV2.s.sol";
 import {ActorContract} from "../mocks/MarketMocks.sol";
-import {MockToken} from "../mocks/MockTokens.sol";
 
 contract DeployBiniV2Harness is DeployBiniV2 {
     function deployForTest(DeploymentConfig calldata config) external returns (Deployment memory) {
@@ -18,7 +17,6 @@ contract DeployBiniV2Test is Test {
     address internal executor;
     address internal pauser;
     address internal genesis;
-    MockToken internal v1;
 
     function setUp() public {
         script = new DeployBiniV2Harness();
@@ -26,7 +24,6 @@ contract DeployBiniV2Test is Test {
         executor = address(new ActorContract());
         pauser = address(new ActorContract());
         genesis = address(new ActorContract());
-        v1 = new MockToken("BINI V1", "BINI1", 12);
         _setValidEnv();
     }
 
@@ -37,10 +34,7 @@ contract DeployBiniV2Test is Test {
         assertEq(deployed.token.balanceOf(genesis), 1_000_000_000 ether);
         assertEq(deployed.token.defaultAdmin(), address(deployed.timelock));
         assertFalse(deployed.token.marketOpen());
-        assertEq(address(deployed.migrationVault.v1Token()), address(v1));
-        assertEq(address(deployed.migrationVault.v2Token()), address(deployed.token));
         assertFalse(deployed.token.hasRole(deployed.token.UPGRADER_ROLE(), address(script)));
-        assertFalse(deployed.migrationVault.hasRole(deployed.migrationVault.CONFIG_ROLE(), address(script)));
     }
 
     function test_WrongChainIdReverts() public {
@@ -78,7 +72,6 @@ contract DeployBiniV2Test is Test {
         vm.setEnv("BINI_V2_TIMELOCK_EXECUTOR", vm.toString(executor));
         vm.setEnv("BINI_V2_EMERGENCY_PAUSER_SAFE", vm.toString(pauser));
         vm.setEnv("BINI_V2_GENESIS_DISTRIBUTION_SAFE", vm.toString(genesis));
-        vm.setEnv("BINI_V2_V1_TOKEN", vm.toString(address(v1)));
         vm.setEnv("BINI_V2_ADMIN_TRANSFER_DELAY", vm.toString(uint256(2 days)));
     }
 
@@ -89,7 +82,6 @@ contract DeployBiniV2Test is Test {
             executor: executor,
             emergencyPauserSafe: pauser,
             genesisDistributionSafe: genesis,
-            v1Token: address(v1),
             adminTransferDelay: uint48(2 days)
         });
     }

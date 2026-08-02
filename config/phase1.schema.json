@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-phase1.json",
+  "title": "BINI V2 Phase 1 deployment and top-level custody configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "network", "phase", "chainId", "rpcEnv", "deployerAccount", "deployerAddress",
+    "expectedGitCommit", "illustrativeInputs", "expectedTokenCreationBytecodeHash",
+    "minDeployerBalanceWei", "timelockMinDelay", "adminTransferDelay",
+    "timelockProposerSafe", "timelockExecutorSafe", "emergencyPauserSafe",
+    "genesisDistributionSafe", "rewardsY1Safe", "rewardsY2ReserveSafe",
+    "rewardsY3ReserveSafe", "rewardsY4ReserveSafe", "teamFoundersReserveSafe",
+    "marketingOperationsSafe", "marketingMilestoneReserveSafe", "ecosystemReserveSafe",
+    "liquidityReserveSafe", "safeThresholds"
+  ],
+  "properties": {
+    "$schema": {"type": "string"},
+    "network": {"type": "string", "minLength": 1},
+    "phase": {"const": "PHASE_1"},
+    "chainId": {"type": "integer", "minimum": 1},
+    "rpcEnv": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+    "deployerAccount": {"type": "string", "minLength": 1},
+    "deployerAddress": {"$ref": "#/$defs/address"},
+    "expectedGitCommit": {"type": "string", "minLength": 7},
+    "illustrativeInputs": {"type": "boolean"},
+    "expectedTokenCreationBytecodeHash": {"$ref": "#/$defs/hash"},
+    "minDeployerBalanceWei": {"type": "string", "pattern": "^[0-9]+$"},
+    "timelockMinDelay": {"type": "integer", "minimum": 1},
+    "adminTransferDelay": {"type": "integer", "minimum": 0, "maximum": 281474976710655},
+    "timelockProposerSafe": {"$ref": "#/$defs/address"},
+    "timelockExecutorSafe": {"$ref": "#/$defs/address"},
+    "emergencyPauserSafe": {"$ref": "#/$defs/address"},
+    "genesisDistributionSafe": {"$ref": "#/$defs/address"},
+    "rewardsY1Safe": {"$ref": "#/$defs/address"},
+    "rewardsY2ReserveSafe": {"$ref": "#/$defs/address"},
+    "rewardsY3ReserveSafe": {"$ref": "#/$defs/address"},
+    "rewardsY4ReserveSafe": {"$ref": "#/$defs/address"},
+    "teamFoundersReserveSafe": {"$ref": "#/$defs/address"},
+    "marketingOperationsSafe": {"$ref": "#/$defs/address"},
+    "marketingMilestoneReserveSafe": {"$ref": "#/$defs/address"},
+    "ecosystemReserveSafe": {"$ref": "#/$defs/address"},
+    "liquidityReserveSafe": {"$ref": "#/$defs/address"},
+    "safeThresholds": {
+      "type": "object",
+      "minProperties": 13,
+      "propertyNames": {"pattern": "^0x[0-9a-fA-F]{40}$"},
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    }
+  },
+  "$defs": {
+    "address": {"type": "string", "pattern": "^0x(?!0{40}$)[0-9a-fA-F]{40}$"},
+    "hash": {"type": "string", "pattern": "^0x[0-9a-fA-F]{64}$"}
+  }
+}

@@ -1,15 +1,17 @@
 {
-  "ledgerVersion": "bini-v2-genesis-v1",
+  "ledgerVersion": "bini-v2-phase1-nine-safe-v1",
+  "phase": "PHASE_1",
   "illustrativeInputs": true,
   "totalSupplyRaw": "1000000000000000000000000000",
   "allocations": [
-    {"allocationId": "migration-reserve", "category": "Migration Reserve", "recipient": "0x0000000000000000000000000000000000003001", "amountRaw": "100000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": false, "immediatelyLiquid": false},
-    {"allocationId": "treasury", "category": "Treasury", "recipient": "0x0000000000000000000000000000000000003002", "amountRaw": "250000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": false, "immediatelyLiquid": false},
-    {"allocationId": "team-vesting", "category": "Team Vesting", "recipient": "0x0000000000000000000000000000000000003101", "amountRaw": "150000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": true, "immediatelyLiquid": false, "vestingGrantId": "team-aggregate-001"},
-    {"allocationId": "partner-vesting", "category": "Partner/Investor Vesting", "recipient": "0x0000000000000000000000000000000000003102", "amountRaw": "100000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": true, "immediatelyLiquid": false, "vestingGrantId": "partner-aggregate-001"},
-    {"allocationId": "rewards", "category": "Rewards/Ecosystem", "recipient": "0x0000000000000000000000000000000000003003", "amountRaw": "200000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": false, "immediatelyLiquid": false},
-    {"allocationId": "liquidity", "category": "Liquidity and Market Making", "recipient": "0x0000000000000000000000000000000000003004", "amountRaw": "100000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": false, "immediatelyLiquid": false},
-    {"allocationId": "strategic", "category": "Strategic/CEX Reserve", "recipient": "0x0000000000000000000000000000000000003005", "amountRaw": "75000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": false, "immediatelyLiquid": false},
-    {"allocationId": "other-approved", "category": "Other explicitly approved allocations", "recipient": "0x0000000000000000000000000000000000003006", "amountRaw": "25000000000000000000000000", "sourceBucket": "Genesis Distribution Safe", "vestingRequired": false, "immediatelyLiquid": false}
+    {"allocationId":"rewards-year-1","economicPool":"Rewards","category":"Rewards Year 1","recipientConfigKey":"rewardsY1Safe","recipient":"0x0000000000000000000000000000000000002001","amountRaw":"210000000000000000000000000"},
+    {"allocationId":"rewards-year-2-reserve","economicPool":"Rewards","category":"Rewards Year 2 Reserve","recipientConfigKey":"rewardsY2ReserveSafe","recipient":"0x0000000000000000000000000000000000002002","amountRaw":"180000000000000000000000000"},
+    {"allocationId":"rewards-year-3-reserve","economicPool":"Rewards","category":"Rewards Year 3 Reserve","recipientConfigKey":"rewardsY3ReserveSafe","recipient":"0x0000000000000000000000000000000000002003","amountRaw":"120000000000000000000000000"},
+    {"allocationId":"rewards-year-4-reserve","economicPool":"Rewards","category":"Rewards Year 4 Reserve","recipientConfigKey":"rewardsY4ReserveSafe","recipient":"0x0000000000000000000000000000000000002004","amountRaw":"90000000000000000000000000"},
+    {"allocationId":"team-founders-reserve","economicPool":"Team & Founders","category":"Team & Founders Reserve","recipientConfigKey":"teamFoundersReserveSafe","recipient":"0x0000000000000000000000000000000000002005","amountRaw":"150000000000000000000000000"},
+    {"allocationId":"marketing-operations","economicPool":"Marketing","category":"Marketing Operations","recipientConfigKey":"marketingOperationsSafe","recipient":"0x0000000000000000000000000000000000002006","amountRaw":"5000000000000000000000000"},
+    {"allocationId":"marketing-milestone-reserve","economicPool":"Marketing","category":"Marketing Milestone Reserve","recipientConfigKey":"marketingMilestoneReserveSafe","recipient":"0x0000000000000000000000000000000000002007","amountRaw":"95000000000000000000000000"},
+    {"allocationId":"ecosystem-reserve","economicPool":"Ecosystem Reserve","category":"Ecosystem Reserve","recipientConfigKey":"ecosystemReserveSafe","recipient":"0x0000000000000000000000000000000000002008","amountRaw":"100000000000000000000000000"},
+    {"allocationId":"dex-liquidity-reserve","economicPool":"DEX Liquidity","category":"DEX Liquidity Reserve","recipientConfigKey":"liquidityReserveSafe","recipient":"0x0000000000000000000000000000000000002009","amountRaw":"50000000000000000000000000"}
   ]
 }

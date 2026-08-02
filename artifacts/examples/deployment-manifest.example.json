@@ -6,7 +6,6 @@
   "deployer": "SET_FROM_KEYSTORE_ACCOUNT",
   "implementation": "SET_FROM_RECEIPT",
   "proxy": "SET_FROM_RECEIPT",
-  "migrationVault": "SET_FROM_RECEIPT",
   "timelock": "SET_FROM_RECEIPT",
   "safes": {},
   "transactionHashes": [],

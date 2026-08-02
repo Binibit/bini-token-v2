@@ -41,11 +41,11 @@ therefore `BLOCKED`; the implemented minimal compromise is documented in
 
 ## Status
 
-`ENGINEERING_FINAL_CANDIDATE_NOT_DEPLOY_AUTHORIZED`
+`SCRIPTS_GREEN_SEPOLIA_REQUIRED`
 
-The implementation, internal review, release gates and test evidence are
-complete. Mainnet deployment still requires ratified governance addresses,
-Sepolia rehearsal evidence and an independent external audit.
+The Phase 1 mechanics are release-candidate code. Committed Sepolia values are
+illustrative and deliberately fail executable preflight. Sepolia rehearsal,
+ratified Safe addresses and an independent external audit remain outstanding.
 
 ## Verify
 
@@ -66,14 +66,19 @@ migration, verification and status. Every command defaults to non-transacting
 
 ```sh
 ./bin/bini-v2 preflight --network sepolia
-./bin/bini-v2 deploy --network sepolia --config config/sepolia.json
-./bin/bini-v2 configure-market --network sepolia
+./bin/bini-v2 deploy --network sepolia --config config/sepolia.phase1.json
 ./bin/bini-v2 distribute --network sepolia --ledger data/bini-v2-supply-ledger.json
-./bin/bini-v2 migration-plan --network sepolia --holders data/v1-v2-known-holders.csv
-./bin/bini-v2 migrate --network sepolia --holders data/v1-v2-known-holders.csv --batch batch-01
 ./bin/bini-v2 verify --network sepolia
-./bin/bini-v2 open-market --network sepolia
 ./bin/bini-v2 status --network sepolia
+
+# Phase 2, only after separate owner ratification
+./bin/bini-v2 migration-plan --network sepolia --migration-config config/sepolia.migration.json --holders data/v1-v2-known-holders.csv
+./bin/bini-v2 migrate --network sepolia --migration-config config/sepolia.migration.json --holders data/v1-v2-known-holders.csv --batch batch-01
+./bin/bini-v2 verify-migration --network sepolia --migration-config config/sepolia.migration.json
+
+# Phase 3, only after separate market-launch authorization
+./bin/bini-v2 configure-market --network sepolia --policy config/sepolia.dex-policy.json
+./bin/bini-v2 open-market --network sepolia --policy config/sepolia.dex-policy.json
 ```
 
 Committed network and holder data are illustrative and intentionally fail all
@@ -103,7 +108,7 @@ deployment evidence.
 - `data/`: versioned supply, vesting and migration inputs
 - `test/`: unit, E2E, invariant, governance, upgrade and pinned fork suites
 - `script/`: environment-driven ERC-1967/UUPS deployment
-- `config/`: governance rehearsal manifest and ERC-7201 schema
+- `config/`: phase-separated deployment, migration, DEX-policy and storage schemas
 - `policy/`: allowed and prohibited public function policy
 - `artifacts/release/`: reproducibly generated ABI, selectors and build hashes
 - `tools/`: release, coverage and artifact consistency gates

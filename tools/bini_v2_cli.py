@@ -26,6 +26,24 @@ HASH_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 ZERO_ADDRESS = "0x" + "0" * 40
 ZERO_HASH = "0x" + "0" * 64
 ERC1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+PHASE1_CANON = (
+    ("rewards-year-1", "Rewards", "Rewards Year 1", "rewardsY1Safe", 210_000_000 * 10**18),
+    ("rewards-year-2-reserve", "Rewards", "Rewards Year 2 Reserve", "rewardsY2ReserveSafe", 180_000_000 * 10**18),
+    ("rewards-year-3-reserve", "Rewards", "Rewards Year 3 Reserve", "rewardsY3ReserveSafe", 120_000_000 * 10**18),
+    ("rewards-year-4-reserve", "Rewards", "Rewards Year 4 Reserve", "rewardsY4ReserveSafe", 90_000_000 * 10**18),
+    ("team-founders-reserve", "Team & Founders", "Team & Founders Reserve", "teamFoundersReserveSafe", 150_000_000 * 10**18),
+    ("marketing-operations", "Marketing", "Marketing Operations", "marketingOperationsSafe", 5_000_000 * 10**18),
+    (
+        "marketing-milestone-reserve",
+        "Marketing",
+        "Marketing Milestone Reserve",
+        "marketingMilestoneReserveSafe",
+        95_000_000 * 10**18,
+    ),
+    ("ecosystem-reserve", "Ecosystem Reserve", "Ecosystem Reserve", "ecosystemReserveSafe", 100_000_000 * 10**18),
+    ("dex-liquidity-reserve", "DEX Liquidity", "DEX Liquidity Reserve", "liquidityReserveSafe", 50_000_000 * 10**18),
+)
+PHASE1_DESTINATION_KEYS = tuple(item[3] for item in PHASE1_CANON)
 CSV_COLUMNS = (
     "holderId",
     "category",
@@ -187,7 +205,11 @@ def load_context(args: argparse.Namespace) -> Context:
     mode = (args.mode or os.environ.get("EXECUTION_MODE", "PLAN")).upper()
     if mode not in MODES:
         raise ReleaseError(f"invalid execution mode {mode}; expected one of {', '.join(MODES)}")
-    config_path = Path(args.config) if getattr(args, "config", None) else ROOT / "config" / f"{args.network}.json"
+    config_path = (
+        Path(args.config)
+        if getattr(args, "config", None)
+        else ROOT / "config" / f"{args.network}.phase1.json"
+    )
     if not config_path.is_absolute():
         config_path = ROOT / config_path
     config = load_json(config_path)
@@ -211,34 +233,31 @@ def guard_execution(context: Context) -> None:
 
 def validate_config(context: Context) -> None:
     config = context.config
+    if config.get("phase") != "PHASE_1":
+        raise ReleaseError("primary config must be a PHASE_1 configuration")
     if strict_int(config.get("chainId"), "config.chainId") <= 0:
         raise ReleaseError("config.chainId must be positive")
     if strict_int(config.get("timelockMinDelay"), "config.timelockMinDelay") <= 0:
         raise ReleaseError("timelockMinDelay must be positive")
     strict_int(config.get("adminTransferDelay"), "config.adminTransferDelay")
     strict_int(config.get("minDeployerBalanceWei"), "config.minDeployerBalanceWei")
+    require_address(config.get("deployerAddress"), "config.deployerAddress")
+    if not isinstance(config.get("deployerAccount"), str) or not config["deployerAccount"]:
+        raise ReleaseError("config.deployerAccount is required")
     safe_keys = (
         "timelockProposerSafe",
         "timelockExecutorSafe",
         "emergencyPauserSafe",
         "genesisDistributionSafe",
-        "treasurySafe",
-        "liquiditySafe",
-        "rewardsSafe",
-        "strategicReserveSafe",
+        *PHASE1_DESTINATION_KEYS,
     )
-    for key in (*safe_keys, "biniV1Token"):
+    for key in safe_keys:
         require_address(config.get(key), f"config.{key}")
-    custody_keys = (
-        "genesisDistributionSafe",
-        "treasurySafe",
-        "liquiditySafe",
-        "rewardsSafe",
-        "strategicReserveSafe",
-    )
-    custody_addresses = [config[key].lower() for key in custody_keys]
-    if len(set(custody_addresses)) != len(custody_addresses):
-        raise ReleaseError("Genesis, Treasury, Liquidity, Rewards and Strategic custody addresses must be distinct")
+    destination_addresses = [config[key].lower() for key in PHASE1_DESTINATION_KEYS]
+    if len(set(destination_addresses)) != len(PHASE1_DESTINATION_KEYS):
+        raise ReleaseError("all nine Phase 1 destination Safes must be distinct")
+    if config["genesisDistributionSafe"].lower() in set(destination_addresses):
+        raise ReleaseError("Genesis Distribution Safe must not be a Phase 1 destination")
     thresholds = config.get("safeThresholds")
     if not isinstance(thresholds, dict) or not thresholds:
         raise ReleaseError("config.safeThresholds must be a non-empty object")
@@ -250,13 +269,13 @@ def validate_config(context: Context) -> None:
     missing_thresholds = [key for key in safe_keys if config[key].lower() not in threshold_addresses]
     if missing_thresholds:
         raise ReleaseError(f"safeThresholds is missing configured Safes: {', '.join(missing_thresholds)}")
-    validate_dex_policy(config)
 
 
-def validate_dex_policy(config: dict[str, Any]) -> None:
-    policy = config.get("dexPolicy")
-    if not isinstance(policy, dict):
-        raise ReleaseError("config.dexPolicy must be an object")
+def validate_dex_policy(policy: dict[str, Any], context: Context | None = None) -> None:
+    if policy.get("phase") != "PHASE_3" or policy.get("expectedPolicyState") != "PRE_MARKET_BLOCKED":
+        raise ReleaseError("DEX policy must declare PHASE_3 and PRE_MARKET_BLOCKED")
+    if context and (policy.get("network") != context.network or strict_int(policy.get("chainId"), "DEX chainId") != context.chain_id):
+        raise ReleaseError("DEX policy network/chain does not match Phase 1 deployment")
     factories = policy.get("factories")
     infrastructure = policy.get("infrastructure")
     if not isinstance(factories, list) or not factories:
@@ -286,7 +305,40 @@ def validate_dex_policy(config: dict[str, Any]) -> None:
         if address in addresses:
             raise ReleaseError(f"duplicate DEX policy address: {address}")
         addresses.add(address)
+        if entry.get("kind") not in {"POOL_MANAGER", "ROUTER", "POSITION_MANAGER", "LIQUIDITY_MANAGER", "GATEWAY"}:
+            raise ReleaseError(f"invalid DEX infrastructure kind: {entry.get('kind')}")
         require_hash(entry.get("runtimeCodeHash"), f"DEX infrastructure {index} runtimeCodeHash")
+
+
+def load_phase_document(args: argparse.Namespace, attribute: str, suffix: str) -> tuple[Path, dict[str, Any]]:
+    configured = getattr(args, attribute, None)
+    path = Path(configured) if configured else ROOT / "config" / f"{args.network}.{suffix}.json"
+    if not path.is_absolute():
+        path = ROOT / path
+    document = load_json(path)
+    if document.get("network") != args.network:
+        raise ReleaseError(f"{suffix} network does not match --network")
+    return path, document
+
+
+def validate_migration_config(config: dict[str, Any], context: Context) -> None:
+    if config.get("phase") != "PHASE_2":
+        raise ReleaseError("migration config must declare PHASE_2")
+    if config.get("network") != context.network or strict_int(config.get("chainId"), "migration chainId") != context.chain_id:
+        raise ReleaseError("migration config network/chain does not match Phase 1 deployment")
+    for key in ("v1Token", "v2Proxy", "migrationVault", "fundingReserveSafe"):
+        require_address(config.get(key), f"migration.{key}")
+    if str(config.get("conversionFactor")) != str(V1_TO_V2_SCALE):
+        raise ReleaseError("migration conversionFactor must be exactly 1000000")
+    if strict_int(config.get("fundingReserveRaw"), "migration.fundingReserveRaw") <= 0:
+        raise ReleaseError("migration.fundingReserveRaw must be positive")
+    approved_reserves = {context.config[key].lower() for key in PHASE1_DESTINATION_KEYS}
+    if config["fundingReserveSafe"].lower() not in approved_reserves:
+        raise ReleaseError("migration.fundingReserveSafe must be one of the approved Phase 1 custody Safes")
+    manifest_hash = config.get("holderManifestHash")
+    if not isinstance(manifest_hash, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest_hash):
+        raise ReleaseError("migration.holderManifestHash must be a sha256 hash")
+    require_hash(config.get("expectedVaultCreationBytecodeHash"), "migration.expectedVaultCreationBytecodeHash")
 
 
 def require_hash(value: Any, field: str) -> str:
@@ -295,94 +347,49 @@ def require_hash(value: Any, field: str) -> str:
     return value
 
 
-def validate_ledger(path: Path, vesting_path: Path | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def validate_ledger(path: Path, context: Context | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     ledger = load_json(path)
     version = ledger.get("ledgerVersion")
     if not isinstance(version, str) or not version:
         raise ReleaseError("ledgerVersion is required")
     if strict_int(ledger.get("totalSupplyRaw"), "totalSupplyRaw") != TOTAL_SUPPLY_RAW:
         raise ReleaseError("totalSupplyRaw must equal exactly 1,000,000,000 BINI")
+    if ledger.get("phase") != "PHASE_1":
+        raise ReleaseError("allocation ledger must declare PHASE_1")
     allocations = ledger.get("allocations")
-    if not isinstance(allocations, list) or not allocations:
-        raise ReleaseError("allocations must be a non-empty array")
-    ids: set[str] = set()
+    if not isinstance(allocations, list) or len(allocations) != len(PHASE1_CANON):
+        raise ReleaseError("Phase 1 ledger must contain exactly nine canonical allocations")
     recipients: set[str] = set()
     total = 0
-    grants = load_vesting(vesting_path) if vesting_path else {}
-    for index, allocation in enumerate(allocations):
+    for index, (allocation, expected) in enumerate(zip(allocations, PHASE1_CANON)):
         if not isinstance(allocation, dict):
             raise ReleaseError(f"allocation {index} must be an object")
-        allocation_id = allocation.get("allocationId")
-        if not isinstance(allocation_id, str) or not allocation_id or allocation_id in ids:
-            raise ReleaseError(f"duplicate or invalid allocationId: {allocation_id}")
-        ids.add(allocation_id)
+        allocation_id, pool, category, config_key, expected_amount = expected
+        exact = {
+            "allocationId": allocation_id,
+            "economicPool": pool,
+            "category": category,
+            "recipientConfigKey": config_key,
+            "amountRaw": str(expected_amount),
+        }
+        for key, expected_value in exact.items():
+            if allocation.get(key) != expected_value:
+                raise ReleaseError(f"allocation {index} must bind {key} to canonical value {expected_value}")
+        forbidden = {"vestingGrantId", "vestingRequired", "migrationMethod", "dexPool", "router", "openMarket"}
+        if forbidden.intersection(allocation):
+            raise ReleaseError(f"Phase 1 allocation {allocation_id} contains a later-phase action")
         recipient = require_address(allocation.get("recipient"), f"allocation[{allocation_id}].recipient")
         normalized = recipient.lower()
         if normalized in recipients:
             raise ReleaseError(f"duplicate allocation recipient: {recipient}")
         recipients.add(normalized)
-        amount = strict_int(allocation.get("amountRaw"), f"allocation[{allocation_id}].amountRaw")
-        if amount <= 0:
-            raise ReleaseError(f"allocation {allocation_id} amount must be positive")
+        if context and recipient.lower() != context.config[config_key].lower():
+            raise ReleaseError(f"allocation {allocation_id} does not match config.{config_key}")
+        amount = strict_int(allocation["amountRaw"], f"allocation[{allocation_id}].amountRaw")
         total += amount
-        category = str(allocation.get("category", "")).upper()
-        vesting_required = allocation.get("vestingRequired", False)
-        immediately_liquid = allocation.get("immediatelyLiquid", False)
-        if not isinstance(vesting_required, bool) or not isinstance(immediately_liquid, bool):
-            raise ReleaseError(f"allocation {allocation_id} vesting flags must be booleans")
-        if category in {"TEAM VESTING", "PARTNER/INVESTOR VESTING"} and not immediately_liquid:
-            if not vesting_required:
-                raise ReleaseError(f"allocation {allocation_id} must use vesting")
-            grant_id = allocation.get("vestingGrantId")
-            grant = grants.get(grant_id)
-            if grant is None:
-                raise ReleaseError(f"missing vesting grant {grant_id} for allocation {allocation_id}")
-            if require_address(grant.get("vestingContract"), f"grant[{grant_id}].vestingContract").lower() != normalized:
-                raise ReleaseError(f"vesting recipient mismatch for allocation {allocation_id}")
-            if strict_int(grant.get("amountRaw"), f"grant[{grant_id}].amountRaw") != amount:
-                raise ReleaseError(f"vesting amount mismatch for allocation {allocation_id}")
     if total != TOTAL_SUPPLY_RAW:
         raise ReleaseError(f"ledger sum {total} does not equal fixed supply {TOTAL_SUPPLY_RAW}")
-    required_categories = {
-        "MIGRATION RESERVE",
-        "TREASURY",
-        "TEAM VESTING",
-        "PARTNER/INVESTOR VESTING",
-        "REWARDS/ECOSYSTEM",
-        "LIQUIDITY AND MARKET MAKING",
-        "STRATEGIC/CEX RESERVE",
-    }
-    present_categories = {str(item.get("category", "")).upper() for item in allocations}
-    missing_categories = sorted(required_categories - present_categories)
-    if missing_categories:
-        raise ReleaseError(f"ledger is missing required categories: {', '.join(missing_categories)}")
     return ledger, allocations
-
-
-def load_vesting(path: Path | None) -> dict[str, dict[str, Any]]:
-    if path is None:
-        return {}
-    document = load_json(path)
-    grants = document.get("grants")
-    if not isinstance(grants, list):
-        raise ReleaseError("vesting grants must be an array")
-    result: dict[str, dict[str, Any]] = {}
-    for grant in grants:
-        grant_id = grant.get("grantId") if isinstance(grant, dict) else None
-        if not isinstance(grant_id, str) or not grant_id or grant_id in result:
-            raise ReleaseError(f"duplicate or invalid vesting grant: {grant_id}")
-        require_address(grant.get("beneficiary"), f"grant[{grant_id}].beneficiary")
-        require_address(grant.get("vestingContract"), f"grant[{grant_id}].vestingContract")
-        amount = strict_int(grant.get("amountRaw"), f"grant[{grant_id}].amountRaw")
-        start = strict_int(grant.get("start"), f"grant[{grant_id}].start")
-        cliff = strict_int(grant.get("cliff"), f"grant[{grant_id}].cliff")
-        duration = strict_int(grant.get("duration"), f"grant[{grant_id}].duration")
-        if amount <= 0 or duration <= 0 or cliff > duration or start <= 0:
-            raise ReleaseError(f"invalid vesting schedule for {grant_id}")
-        if grant.get("auditedImplementationApproved") is not True:
-            raise ReleaseError(f"vesting implementation is not approved for {grant_id}")
-        result[grant_id] = grant
-    return result
 
 
 def load_holders(path: Path) -> list[dict[str, str]]:
@@ -548,22 +555,11 @@ def timelock_package(
     }
 
 
-def validate_distribution_destinations(
-    context: Context, deployment: dict[str, Any], allocations: list[dict[str, Any]]
-) -> None:
-    expected = {
-        "MIGRATION RESERVE": deployment["migrationVault"],
-        "TREASURY": context.config["treasurySafe"],
-        "REWARDS/ECOSYSTEM": context.config["rewardsSafe"],
-        "LIQUIDITY AND MARKET MAKING": context.config["liquiditySafe"],
-        "STRATEGIC/CEX RESERVE": context.config["strategicReserveSafe"],
-    }
-    for allocation in allocations:
-        category = str(allocation["category"]).upper()
-        if category in expected and allocation["recipient"].lower() != expected[category].lower():
-            raise ReleaseError(
-                f"{allocation['allocationId']} destination does not match the approved {category} custody address"
-            )
+def validate_distribution_destinations(context: Context, allocations: list[dict[str, Any]]) -> None:
+    for allocation, expected in zip(allocations, PHASE1_CANON):
+        config_key = expected[3]
+        if allocation["recipient"].lower() != context.config[config_key].lower():
+            raise ReleaseError(f"{allocation['allocationId']} does not match approved config.{config_key}")
 
 
 def deployment_file(network: str) -> Path:
@@ -573,7 +569,7 @@ def deployment_file(network: str) -> Path:
 def load_deployment(network: str) -> dict[str, Any]:
     path = deployment_file(network)
     deployment = load_json(path)
-    for key in ("proxy", "migrationVault", "timelock"):
+    for key in ("implementation", "proxy", "timelock"):
         require_address(deployment.get(key), f"deployment.{key}")
     return deployment
 
@@ -583,10 +579,7 @@ def inspect_hash(contract: str, field: str) -> str:
 
 
 def check_bytecode_hashes(config: dict[str, Any]) -> None:
-    expected = {
-        "BiniTokenV2": config.get("expectedTokenCreationBytecodeHash"),
-        "BiniMigrationVault": config.get("expectedVaultCreationBytecodeHash"),
-    }
+    expected = {"BiniTokenV2": config.get("expectedTokenCreationBytecodeHash")}
     for contract, expected_hash in expected.items():
         if not isinstance(expected_hash, str) or inspect_hash(contract, "bytecode") != expected_hash:
             raise ReleaseError(f"creation bytecode hash mismatch for {contract}")
@@ -621,8 +614,6 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
                 addresses["implementation"] = address
             elif name == "ERC1967Proxy":
                 addresses["proxy"] = address
-            elif name == "BiniMigrationVault":
-                addresses["migrationVault"] = address
             elif name == "TimelockController":
                 addresses["timelock"] = address
     for item in receipts:
@@ -630,7 +621,7 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
             tx_hash = item.get("transactionHash")
             if isinstance(tx_hash, str) and tx_hash not in transaction_hashes:
                 transaction_hashes.append(tx_hash)
-    required = {"implementation", "proxy", "migrationVault", "timelock"}
+    required = {"implementation", "proxy", "timelock"}
     if set(addresses) != required:
         raise ReleaseError(f"could not recover all deployment addresses from {receipt_path}: {addresses}")
     block_values = [receipt_int(item.get("blockNumber"), "receipt blockNumber") for item in receipts if isinstance(item, dict)]
@@ -681,7 +672,7 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
 
 
 def verify_recorded_deployment(context: Context, deployment: dict[str, Any]) -> None:
-    for key in ("implementation", "proxy", "migrationVault", "timelock"):
+    for key in ("implementation", "proxy", "timelock"):
         address = require_address(deployment.get(key), f"deployment.{key}")
         if run(["cast", "code", address, "--rpc-url", context.rpc_url]) in ("", "0x"):
             raise ReleaseError(f"recorded deployment has no code at {key}: {address}")
@@ -694,10 +685,6 @@ def verify_recorded_deployment(context: Context, deployment: dict[str, Any]) -> 
     delay = strict_int(call(context, deployment["timelock"], "getMinDelay()(uint256)"), "Timelock delay")
     if delay != strict_int(context.config["timelockMinDelay"], "configured Timelock delay"):
         raise ReleaseError("recorded Timelock delay does not match config")
-    if call(context, deployment["migrationVault"], "v2Token()(address)").lower() != deployment["proxy"].lower():
-        raise ReleaseError("migration vault is linked to the wrong V2 token")
-    if call(context, deployment["migrationVault"], "v1Token()(address)").lower() != context.config["biniV1Token"].lower():
-        raise ReleaseError("migration vault is linked to the wrong V1 token")
     implementation_word = run(
         [
             "cast",
@@ -725,18 +712,6 @@ def verify_recorded_deployment(context: Context, deployment: dict[str, Any]) -> 
         role = call(context, deployment["proxy"], role_signature)
         if call_args(context, deployment["proxy"], "hasRole(bytes32,address)(bool)", role, account).lower() != "true":
             raise ReleaseError(f"missing token role {role_signature} for {account}")
-    vault_admin_role = call(context, deployment["migrationVault"], "DEFAULT_ADMIN_ROLE()(bytes32)")
-    if (
-        call_args(
-            context,
-            deployment["migrationVault"],
-            "hasRole(bytes32,address)(bool)",
-            vault_admin_role,
-            deployment["timelock"],
-        ).lower()
-        != "true"
-    ):
-        raise ReleaseError("Timelock does not hold migration vault admin role")
     initializer_data = run(
         [
             "cast",
@@ -816,10 +791,12 @@ def runtime_code_hash(context: Context, address: str, field: str) -> str:
     return run(["cast", "keccak", code])
 
 
-def dex_configuration_calls(context: Context, token: str, *, only_pending: bool) -> list[dict[str, Any]]:
+def dex_configuration_calls(
+    context: Context, token: str, policy: dict[str, Any], *, only_pending: bool
+) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
     kind_values = {"UNISWAP_V2": 1, "UNISWAP_V3": 2}
-    for entry in context.config["dexPolicy"]["factories"]:
+    for entry in policy["factories"]:
         expected_hash = entry["runtimeCodeHash"].lower()
         if only_pending:
             actual_hash = runtime_code_hash(context, entry["address"], f"DEX factory {entry['name']}")
@@ -842,7 +819,7 @@ def dex_configuration_calls(context: Context, token: str, *, only_pending: bool)
         )
         calls.append({"name": entry["name"], "to": token, "value": "0", "data": data})
     pending_infrastructure = []
-    for entry in context.config["dexPolicy"]["infrastructure"]:
+    for entry in policy["infrastructure"]:
         expected_hash = entry["runtimeCodeHash"].lower()
         if only_pending:
             actual_hash = runtime_code_hash(context, entry["address"], f"DEX infrastructure {entry['name']}")
@@ -858,17 +835,57 @@ def dex_configuration_calls(context: Context, token: str, *, only_pending: bool)
     return calls
 
 
-def verify_dex_policy_onchain(context: Context, token: str) -> dict[str, Any]:
+def verify_dex_policy_onchain(context: Context, token: str, policy: dict[str, Any]) -> dict[str, Any]:
     if call(context, token, "marketOpen()(bool)").lower() != "false":
         raise ReleaseError("DEX policy verification requires PRE_MARKET")
-    pending = dex_configuration_calls(context, token, only_pending=True)
+    pending = dex_configuration_calls(context, token, policy, only_pending=True)
     if pending:
         names = ", ".join(item["name"] for item in pending)
         raise ReleaseError(f"PRE_MARKET DEX policy is incomplete: {names}")
     return {
-        "factories": [entry["address"] for entry in context.config["dexPolicy"]["factories"]],
-        "infrastructure": [entry["address"] for entry in context.config["dexPolicy"]["infrastructure"]],
+        "factories": [entry["address"] for entry in policy["factories"]],
+        "infrastructure": [entry["address"] for entry in policy["infrastructure"]],
         "complete": True,
+    }
+
+
+def phase1_distribution_state(
+    context: Context, token: str, allocations: list[dict[str, Any]]
+) -> dict[str, Any]:
+    genesis = context.config["genesisDistributionSafe"]
+    genesis_balance = strict_int(
+        call_args(context, token, "balanceOf(address)(uint256)", genesis), "Genesis balance"
+    )
+    recipients = []
+    all_zero = True
+    all_exact = True
+    for allocation in allocations:
+        expected = strict_int(allocation["amountRaw"], f"{allocation['allocationId']} amount")
+        actual = strict_int(
+            call_args(context, token, "balanceOf(address)(uint256)", allocation["recipient"]),
+            f"{allocation['allocationId']} balance",
+        )
+        all_zero = all_zero and actual == 0
+        all_exact = all_exact and actual == expected
+        recipients.append(
+            {
+                "allocationId": allocation["allocationId"],
+                "safe": allocation["recipient"],
+                "expectedRaw": str(expected),
+                "actualRaw": str(actual),
+            }
+        )
+    if genesis_balance == TOTAL_SUPPLY_RAW and all_zero:
+        status = "DEPLOYED_UNDISTRIBUTED"
+    elif genesis_balance == 0 and all_exact:
+        status = "DISTRIBUTED"
+    else:
+        status = "INCONSISTENT"
+    return {
+        "status": status,
+        "genesisSafe": genesis,
+        "genesisBalanceRaw": str(genesis_balance),
+        "recipients": recipients,
     }
 
 
@@ -876,23 +893,14 @@ def command_preflight(args: argparse.Namespace) -> None:
     context = load_context(args)
     evidence = preflight(context, require_rpc=True)
     ledger_path = ROOT / "data" / "bini-v2-supply-ledger.json"
-    holders_path = ROOT / "data" / "v1-v2-known-holders.csv"
-    vesting_path = ROOT / "data" / "vesting-grants.json"
-    _, allocations = validate_ledger(ledger_path, vesting_path)
-    for grant_id, grant in load_vesting(vesting_path).items():
-        check_contract_code(context, grant["vestingContract"], f"vesting grant {grant_id}")
-    rows = load_holders(holders_path)
-    migration_reserve = sum(
-        strict_int(item["amountRaw"], "migration reserve")
-        for item in allocations
-        if str(item["category"]).upper() == "MIGRATION RESERVE"
-    )
-    planned_migration = sum(strict_int(row["v2RawAmount"], "planned migration") for row in rows)
-    if migration_reserve < planned_migration:
-        raise ReleaseError("migration reserve does not cover all planned holders")
+    validate_ledger(ledger_path, context)
+    if evidence["deployer"].lower() != context.config["deployerAddress"].lower():
+        raise ReleaseError("DEPLOYER_ADDRESS does not match config.deployerAddress")
+    configured_account = context.config["deployerAccount"]
+    if os.environ.get("DEPLOYER_ACCOUNT") and os.environ["DEPLOYER_ACCOUNT"] != configured_account:
+        raise ReleaseError("DEPLOYER_ACCOUNT does not match config.deployerAccount")
     evidence["ledgerHash"] = canonical_hash(ledger_path)
-    evidence["migrationInputHash"] = canonical_hash(holders_path)
-    evidence["migrationHolders"] = len(rows)
+    evidence["phase"] = "PHASE_1"
     print(json.dumps(evidence, indent=2, sort_keys=True))
 
 
@@ -917,7 +925,6 @@ def command_deploy(args: argparse.Namespace) -> None:
         "BINI_V2_TIMELOCK_EXECUTOR": context.config["timelockExecutorSafe"],
         "BINI_V2_EMERGENCY_PAUSER_SAFE": context.config["emergencyPauserSafe"],
         "BINI_V2_GENESIS_DISTRIBUTION_SAFE": context.config["genesisDistributionSafe"],
-        "BINI_V2_V1_TOKEN": context.config["biniV1Token"],
         "BINI_V2_ADMIN_TRANSFER_DELAY": context.config["adminTransferDelay"],
     }
     env.update({key: str(value) for key, value in mapping.items()})
@@ -941,21 +948,25 @@ def command_deploy(args: argparse.Namespace) -> None:
 def command_configure_market(args: argparse.Namespace) -> None:
     context = load_context(args)
     validate_config(context)
+    _, policy = load_phase_document(args, "policy", "dex-policy")
+    validate_dex_policy(policy, context)
     deployment = load_deployment(context.network)
     token = deployment["proxy"]
     if context.mode == "BROADCAST":
         raise ReleaseError("DEX policy is Timelock-controlled; use SAFE_PROPOSAL and execute after the delay")
     if context.mode == "PLAN":
-        calls = dex_configuration_calls(context, token, only_pending=False)
+        calls = dex_configuration_calls(context, token, policy, only_pending=False)
     else:
+        if policy.get("illustrativeInputs") is not False:
+            raise ReleaseError("DEX policy still contains illustrative inputs")
         preflight(context, require_rpc=True)
         verify_recorded_deployment(context, deployment)
-        calls = dex_configuration_calls(context, token, only_pending=True)
+        calls = dex_configuration_calls(context, token, policy, only_pending=True)
         if not calls:
             print(json.dumps({"status": "DEX_POLICY_COMPLETE", "token": token}, indent=2))
             return
     policy_hash = "sha256:" + hashlib.sha256(
-        json.dumps(context.config["dexPolicy"], sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     package = {
         "network": context.network,
@@ -984,14 +995,18 @@ def command_configure_market(args: argparse.Namespace) -> None:
 def command_open_market(args: argparse.Namespace) -> None:
     context = load_context(args)
     validate_config(context)
+    _, policy = load_phase_document(args, "policy", "dex-policy")
+    validate_dex_policy(policy, context)
     deployment = load_deployment(context.network)
     token = deployment["proxy"]
     if context.mode == "BROADCAST":
         raise ReleaseError("market opening is Timelock-controlled; use SAFE_PROPOSAL and execute after the delay")
     if context.mode != "PLAN":
+        if policy.get("illustrativeInputs") is not False:
+            raise ReleaseError("DEX policy still contains illustrative inputs")
         preflight(context, require_rpc=True)
         verify_recorded_deployment(context, deployment)
-        verify_dex_policy_onchain(context, token)
+        verify_dex_policy_onchain(context, token, policy)
     call_data = run(["cast", "calldata", "openMarket()"])
     deployment_identity = ":".join(
         (
@@ -1040,10 +1055,7 @@ def command_distribute(args: argparse.Namespace) -> None:
     ledger_path = Path(args.ledger)
     if not ledger_path.is_absolute():
         ledger_path = ROOT / ledger_path
-    vesting_path = Path(args.vesting)
-    if not vesting_path.is_absolute():
-        vesting_path = ROOT / vesting_path
-    ledger, allocations = validate_ledger(ledger_path, vesting_path)
+    ledger, allocations = validate_ledger(ledger_path, context)
     if deployment_file(context.network).exists():
         deployment = load_deployment(context.network)
         token = require_address(deployment["proxy"], "deployment.proxy")
@@ -1083,14 +1095,19 @@ def command_distribute(args: argparse.Namespace) -> None:
         return
     if context.config.get("illustrativeInputs") is not False or ledger.get("illustrativeInputs") is not False:
         raise ReleaseError("configuration or ledger still contains illustrative inputs")
-    validate_distribution_destinations(context, deployment, allocations)
+    validate_distribution_destinations(context, allocations)
     if context.mode == "BROADCAST":
         raise ReleaseError("Genesis funds are Safe-controlled; use SAFE_PROPOSAL and execute at the Safe threshold")
     if context.mode in {"SIMULATE", "SAFE_PROPOSAL"}:
         preflight(context, require_rpc=True)
-        verify_dex_policy_onchain(context, token)
-        for grant_id, grant in load_vesting(vesting_path).items():
-            check_contract_code(context, grant["vestingContract"], f"vesting grant {grant_id}")
+        verify_recorded_deployment(context, deployment)
+        distribution_state = phase1_distribution_state(context, token, allocations)
+        if distribution_state["status"] == "DISTRIBUTED":
+            print(json.dumps({"status": "ALREADY_DISTRIBUTED", "state": distribution_state}, indent=2))
+            return
+        if distribution_state["status"] != "DEPLOYED_UNDISTRIBUTED":
+            raise ReleaseError("Phase 1 balances are partial or inconsistent; refusing to create a distribution batch")
+        plan["preState"] = distribution_state
         plan["simulation"] = "calldata validated; execute the generated Safe batch in a Sepolia fork/Safe simulation"
     proposal = safe_batch(context.chain_id, context.config["genesisDistributionSafe"], f"BINI V2 distribution {ledger['ledgerVersion']}", transactions)
     package = {"plan": plan, "safeTransactionBuilder": proposal}
@@ -1126,12 +1143,17 @@ def migration_actions(context: Context, rows: list[dict[str, str]], source_hash:
 
 def command_migration_plan(args: argparse.Namespace) -> None:
     context = load_context(args)
+    _, migration = load_phase_document(args, "migration_config", "migration")
+    validate_migration_config(migration, context)
     holders_path = Path(args.holders)
     if not holders_path.is_absolute():
         holders_path = ROOT / holders_path
     rows = load_holders(holders_path)
     source_hash = canonical_hash(holders_path)
     actions = migration_actions(context, rows, source_hash)
+    total_v2_raw = sum(strict_int(row["v2RawAmount"], "v2RawAmount") for row in rows)
+    if strict_int(migration["fundingReserveRaw"], "migration.fundingReserveRaw") != total_v2_raw:
+        raise ReleaseError("migration funding reserve must exactly equal the holder-manifest V2 liability")
     batches: dict[str, list[dict[str, Any]]] = {}
     for action in actions:
         batches.setdefault(action["batch"], []).append(action)
@@ -1139,7 +1161,9 @@ def command_migration_plan(args: argparse.Namespace) -> None:
         if len(batch) > 20:
             raise ReleaseError(f"batch {batch_id} has {len(batch)} holders; maximum is 20 before gas simulation")
     deployment = load_deployment(context.network) if deployment_file(context.network).exists() else None
-    vault = deployment["migrationVault"] if deployment else ZERO_ADDRESS
+    vault = migration["migrationVault"]
+    if deployment and migration["v2Proxy"].lower() != deployment["proxy"].lower():
+        raise ReleaseError("migration.v2Proxy does not match the recorded Phase 1 proxy")
     governance_calls = []
     for batch_id, batch in batches.items():
         holders = "[" + ",".join(item["v1Address"] for item in batch) + "]"
@@ -1178,7 +1202,7 @@ def command_migration_plan(args: argparse.Namespace) -> None:
         "inputFileHash": source_hash,
         "holderCount": len(actions),
         "totalV1Raw": str(sum(strict_int(row["v1RawAmount"], "v1RawAmount") for row in rows)),
-        "totalV2Raw": str(sum(strict_int(row["v2RawAmount"], "v2RawAmount") for row in rows)),
+        "totalV2Raw": str(total_v2_raw),
         "batches": batches,
         "governanceCalls": governance_calls,
         "governanceRequired": "Timelock must set all entitlements and seal only after exact V2 reserve funding.",
@@ -1197,13 +1221,25 @@ def command_migration_plan(args: argparse.Namespace) -> None:
     else:
         if deployment is None:
             raise ReleaseError("confirmed deployment manifest is required")
+        if migration.get("illustrativeInputs") is not False:
+            raise ReleaseError("migration configuration still contains illustrative inputs")
+        if migration["holderManifestHash"] != source_hash:
+            raise ReleaseError("holder CSV hash does not match migration.holderManifestHash")
         preflight(context, require_rpc=True)
+        verify_recorded_deployment(context, deployment)
+        check_contract_code(context, vault, "migration vault")
+        if call(context, vault, "v1Token()(address)").lower() != migration["v1Token"].lower():
+            raise ReleaseError("migration vault V1 token link mismatch")
+        if call(context, vault, "v2Token()(address)").lower() != migration["v2Proxy"].lower():
+            raise ReleaseError("migration vault V2 token link mismatch")
         checked_write(output, plan)
         print(output)
 
 
 def command_migrate(args: argparse.Namespace) -> None:
     context = load_context(args)
+    _, migration = load_phase_document(args, "migration_config", "migration")
+    validate_migration_config(migration, context)
     holders_path = Path(args.holders)
     if not holders_path.is_absolute():
         holders_path = ROOT / holders_path
@@ -1211,13 +1247,12 @@ def command_migrate(args: argparse.Namespace) -> None:
     rows = [row for row in load_holders(holders_path) if row["batch"] == args.batch]
     if not rows:
         raise ReleaseError(f"batch not found: {args.batch}")
-    if deployment_file(context.network).exists():
-        deployment = load_deployment(context.network)
-        vault = deployment["migrationVault"]
-    elif context.mode == "PLAN":
-        vault = ZERO_ADDRESS
-    else:
+    deployment = load_deployment(context.network) if deployment_file(context.network).exists() else None
+    if deployment is None and context.mode != "PLAN":
         raise ReleaseError("confirmed deployment manifest is required")
+    if deployment and migration["v2Proxy"].lower() != deployment["proxy"].lower():
+        raise ReleaseError("migration.v2Proxy does not match the recorded Phase 1 proxy")
+    vault = migration["migrationVault"]
     calls = []
     for action in migration_actions(context, rows, source_hash):
         if action["v2Recipient"].lower() != action["v1Address"].lower():
@@ -1272,13 +1307,23 @@ def command_migrate(args: argparse.Namespace) -> None:
     if context.mode == "PLAN":
         print(json.dumps(package, indent=2, sort_keys=True))
         return
-    if context.config.get("illustrativeInputs") is not False:
-        raise ReleaseError("configuration still contains illustrative inputs")
+    if migration.get("illustrativeInputs") is not False:
+        raise ReleaseError("migration configuration still contains illustrative inputs")
+    if migration["holderManifestHash"] != source_hash:
+        raise ReleaseError("holder CSV hash does not match migration.holderManifestHash")
     pending = [row["holderId"] for row in rows if row["ownershipVerification"] not in {"VERIFIED", "SAFE_RECORD"}]
     if pending:
         raise ReleaseError(f"ownership verification is incomplete for: {', '.join(pending)}")
     if context.mode in {"SIMULATE", "SAFE_PROPOSAL"}:
         preflight(context, require_rpc=True)
+        if deployment is None:
+            raise ReleaseError("confirmed deployment manifest is required")
+        verify_recorded_deployment(context, deployment)
+        check_contract_code(context, vault, "migration vault")
+        if call(context, vault, "v1Token()(address)").lower() != migration["v1Token"].lower():
+            raise ReleaseError("migration vault V1 token link mismatch")
+        if call(context, vault, "v2Token()(address)").lower() != migration["v2Proxy"].lower():
+            raise ReleaseError("migration vault V2 token link mismatch")
         if call(context, vault, "entitlementsSealed()(bool)").lower() != "true":
             raise ReleaseError("migration entitlements are not sealed")
         pending_calls = []
@@ -1324,20 +1369,20 @@ def call_args(context: Context, target: str, signature: str, *args: str) -> str:
 
 def command_verify(args: argparse.Namespace) -> None:
     context = load_context(args)
+    ledger_path = Path(args.ledger)
+    if not ledger_path.is_absolute():
+        ledger_path = ROOT / ledger_path
+    ledger, allocations = validate_ledger(ledger_path, context)
     deployment = load_deployment(context.network)
     preflight_evidence = preflight(context, require_rpc=True)
     token = deployment["proxy"]
-    vault = deployment["migrationVault"]
+    verify_recorded_deployment(context, deployment)
     checks = {
         "name": call(context, token, "name()(string)"),
         "symbol": call(context, token, "symbol()(string)"),
         "decimals": call(context, token, "decimals()(uint8)"),
         "totalSupply": call(context, token, "totalSupply()(uint256)"),
         "marketOpen": call(context, token, "marketOpen()(bool)"),
-        "vaultV1": call(context, vault, "v1Token()(address)"),
-        "vaultV2": call(context, vault, "v2Token()(address)"),
-        "totalLockedV1": call(context, vault, "totalLockedV1()(uint256)"),
-        "totalReleasedV2": call(context, vault, "totalReleasedV2()(uint256)"),
     }
     if checks["name"] != "Binibit" or checks["symbol"] != "BINI":
         raise ReleaseError("token metadata mismatch")
@@ -1347,21 +1392,61 @@ def command_verify(args: argparse.Namespace) -> None:
         raise ReleaseError("token supply mismatch")
     if checks["marketOpen"].lower() != "false":
         raise ReleaseError("PRE_MARKET is not active")
-    if checks["vaultV2"].lower() != token.lower() or checks["vaultV1"].lower() != context.config["biniV1Token"].lower():
-        raise ReleaseError("migration vault token link mismatch")
-    released = strict_int(checks["totalReleasedV2"], "released V2")
-    locked = strict_int(checks["totalLockedV1"], "locked V1")
-    if released != locked * V1_TO_V2_SCALE:
-        raise ReleaseError("migration reconciliation mismatch")
-    dex_policy = verify_dex_policy_onchain(context, token)
+    distribution = phase1_distribution_state(context, token, allocations)
+    if distribution["status"] == "INCONSISTENT":
+        raise ReleaseError("Phase 1 balances are partial or inconsistent")
     evidence = {
         "preflight": preflight_evidence,
         "deployment": deployment,
         "checks": checks,
-        "dexPolicy": dex_policy,
+        "phase": "PHASE_1",
+        "ledgerVersion": ledger["ledgerVersion"],
+        "ledgerHash": canonical_hash(ledger_path),
+        "distribution": distribution,
         "verifiedAt": now_utc(),
     }
     output = artifact_path("verification", context.network, f"verification-{int(dt.datetime.now().timestamp())}.json")
+    checked_write(output, evidence)
+    print(output)
+
+
+def command_verify_migration(args: argparse.Namespace) -> None:
+    context = load_context(args)
+    _, migration = load_phase_document(args, "migration_config", "migration")
+    validate_migration_config(migration, context)
+    if migration.get("illustrativeInputs") is not False:
+        raise ReleaseError("migration configuration still contains illustrative inputs")
+    deployment = load_deployment(context.network)
+    if migration["v2Proxy"].lower() != deployment["proxy"].lower():
+        raise ReleaseError("migration.v2Proxy does not match the recorded Phase 1 proxy")
+    preflight_evidence = preflight(context, require_rpc=True)
+    verify_recorded_deployment(context, deployment)
+    vault = migration["migrationVault"]
+    check_contract_code(context, vault, "migration vault")
+    checks = {
+        "vaultV1": call(context, vault, "v1Token()(address)"),
+        "vaultV2": call(context, vault, "v2Token()(address)"),
+        "totalLockedV1": call(context, vault, "totalLockedV1()(uint256)"),
+        "totalReleasedV2": call(context, vault, "totalReleasedV2()(uint256)"),
+        "remainingV2Liability": call(context, vault, "remainingV2Liability()(uint256)"),
+    }
+    if checks["vaultV1"].lower() != migration["v1Token"].lower():
+        raise ReleaseError("migration vault V1 token link mismatch")
+    if checks["vaultV2"].lower() != migration["v2Proxy"].lower():
+        raise ReleaseError("migration vault V2 token link mismatch")
+    released = strict_int(checks["totalReleasedV2"], "released V2")
+    locked = strict_int(checks["totalLockedV1"], "locked V1")
+    if released != locked * V1_TO_V2_SCALE:
+        raise ReleaseError("migration reconciliation mismatch")
+    evidence = {
+        "preflight": preflight_evidence,
+        "deployment": deployment,
+        "phase": "PHASE_2",
+        "migrationConfig": migration,
+        "checks": checks,
+        "verifiedAt": now_utc(),
+    }
+    output = artifact_path("verification", context.network, f"migration-{int(dt.datetime.now().timestamp())}.json")
     checked_write(output, evidence)
     print(output)
 
@@ -1374,15 +1459,12 @@ def command_status(args: argparse.Namespace) -> None:
         result["artifacts"][kind] = sorted(str(path.relative_to(ROOT)) for path in directory.glob("*.json")) if directory.exists() else []
     if deployment_file(context.network).exists() and context.mode != "PLAN":
         deployment = load_deployment(context.network)
+        ledger_path = ROOT / "data" / "bini-v2-supply-ledger.json"
+        _, allocations = validate_ledger(ledger_path, context)
         result["onChain"] = {
             "marketOpen": call(context, deployment["proxy"], "marketOpen()(bool)"),
-            "migrationLiability": call(context, deployment["migrationVault"], "remainingV2Liability()(uint256)"),
+            "phase1Distribution": phase1_distribution_state(context, deployment["proxy"], allocations),
         }
-        try:
-            verify_dex_policy_onchain(context, deployment["proxy"])
-            result["onChain"]["dexPolicy"] = "COMPLETE"
-        except ReleaseError as exc:
-            result["onChain"]["dexPolicy"] = f"INCOMPLETE: {exc}"
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
@@ -1399,20 +1481,30 @@ def parser() -> argparse.ArgumentParser:
 
     common("preflight").set_defaults(handler=command_preflight)
     common("deploy").set_defaults(handler=command_deploy)
-    common("configure-market").set_defaults(handler=command_configure_market)
-    common("open-market").set_defaults(handler=command_open_market)
+    configure_market = common("configure-market")
+    configure_market.add_argument("--policy")
+    configure_market.set_defaults(handler=command_configure_market)
+    open_market = common("open-market")
+    open_market.add_argument("--policy")
+    open_market.set_defaults(handler=command_open_market)
     distribute = common("distribute")
     distribute.add_argument("--ledger", required=True)
-    distribute.add_argument("--vesting", default="data/vesting-grants.json")
     distribute.set_defaults(handler=command_distribute)
     migration_plan = common("migration-plan")
     migration_plan.add_argument("--holders", required=True)
+    migration_plan.add_argument("--migration-config")
     migration_plan.set_defaults(handler=command_migration_plan)
     migrate = common("migrate")
     migrate.add_argument("--holders", required=True)
     migrate.add_argument("--batch", required=True)
+    migrate.add_argument("--migration-config")
     migrate.set_defaults(handler=command_migrate)
-    common("verify").set_defaults(handler=command_verify)
+    verify = common("verify")
+    verify.add_argument("--ledger", default="data/bini-v2-supply-ledger.json")
+    verify.set_defaults(handler=command_verify)
+    verify_migration = common("verify-migration")
+    verify_migration.add_argument("--migration-config")
+    verify_migration.set_defaults(handler=command_verify_migration)
     common("status").set_defaults(handler=command_status)
     return root
 

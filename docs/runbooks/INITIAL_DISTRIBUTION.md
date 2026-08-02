@@ -2,18 +2,14 @@
 
 ## Inputs
 
-`data/bini-v2-supply-ledger.json` is the sole executable amount ledger and must
-sum to exactly `1,000,000,000 * 10^18`. `data/vesting-grants.json` binds every
-non-liquid team/partner allocation to an approved, predeployed vesting contract
-and exact schedule. Replace all illustrative records before rehearsal.
+`data/bini-v2-supply-ledger.json` is the sole Phase 1 amount ledger. It binds the
+exact order, IDs, config keys and raw amounts for nine top-level Safes and sums
+to exactly `1,000,000,000 * 10^18`. Replace all illustrative Safe addresses
+before rehearsal.
 
-The migration destination must be the deployed `BiniMigrationVault`; Treasury,
-Liquidity, Rewards and Strategic reserves must use their dedicated Safes or
-approved contracts. Do not combine these custody boundaries.
-
-The CLI refuses an executable Safe package unless the complete PRE_MARKET DEX
-policy is already active on-chain with matching runtime code hashes. This closes
-the interval between contract deployment and market-policy initialization.
+Phase 1 contains no V1 migration, beneficiary vesting, pool transfer, DEX
+configuration or market opening. The 50M liquidity allocation goes only to the
+Liquidity Reserve Safe.
 
 ## Plan and Safe package
 
@@ -22,8 +18,7 @@ the interval between contract deployment and market-policy initialization.
   --ledger data/bini-v2-supply-ledger.json
 
 EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 distribute --network sepolia \
-  --ledger data/bini-v2-supply-ledger.json \
-  --vesting data/vesting-grants.json
+  --ledger data/bini-v2-supply-ledger.json
 ```
 
 The package contains the network, chain ID, source Safe, ledger hash, totals,
@@ -38,9 +33,9 @@ Genesis Safe.
 3. Submit through the official Safe interface or transaction service.
 4. Collect the configured threshold; never automate signer keys.
 5. Execute once, archive Safe proposal ID, nonce and confirmed transaction.
-6. Reconcile every recipient balance/vesting funding and Genesis balance.
+6. Run `./bin/bini-v2 verify --network sepolia` and archive its receipt.
 
-Required invariant: distributed supply plus remaining Genesis balance equals
-exactly one billion BINI. `marketOpen()` must remain false. A failed or partial
-Safe execution is handled as an incident; do not rebuild inputs under the same
-ledger version.
+Required post-state: every recipient equals its canonical amount, Genesis is
+zero, total supply remains one billion BINI, and `marketOpen()` remains false.
+Any partial state is rejected and handled as an incident; do not rebuild inputs
+under the same ledger version.

@@ -1,0 +1,55 @@
+{
+  "status": "EXAMPLE_NOT_AUTHORIZED",
+  "phase": "PHASE_1",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "releaseCommit": "SET_TO_EXACT_CLEAN_COMMIT",
+  "token": {
+    "name": "Binibit",
+    "symbol": "BINI",
+    "decimals": 18,
+    "totalSupplyRaw": "1000000000000000000000000000",
+    "implementation": "SET_FROM_CONFIRMED_RECEIPT",
+    "proxy": "SET_FROM_CONFIRMED_RECEIPT",
+    "creationBytecodeHash": "SET_FROM_REVIEWED_BUILD",
+    "runtimeBytecodeHash": "SET_FROM_CHAIN"
+  },
+  "governance": {
+    "timelock": "SET_FROM_CONFIRMED_RECEIPT",
+    "timelockMinDelay": "SET_FROM_APPROVED_CONFIG",
+    "proposerSafe": "SET_APPROVED_SAFE",
+    "executorSafe": "SET_APPROVED_SAFE",
+    "emergencyPauserSafe": "SET_APPROVED_SAFE",
+    "genesisDistributionSafe": "SET_APPROVED_SAFE"
+  },
+  "allocationLedger": {
+    "path": "data/bini-v2-supply-ledger.json",
+    "sha256": "SET_FROM_APPROVED_FILE",
+    "recipientCount": 9,
+    "totalRaw": "1000000000000000000000000000"
+  },
+  "allocations": [
+    {"order": 1, "id": "rewards-year-1", "safe": "SET_REWARDS_Y1_SAFE", "amountRaw": "210000000000000000000000000"},
+    {"order": 2, "id": "rewards-year-2-reserve", "safe": "SET_REWARDS_Y2_RESERVE_SAFE", "amountRaw": "180000000000000000000000000"},
+    {"order": 3, "id": "rewards-year-3-reserve", "safe": "SET_REWARDS_Y3_RESERVE_SAFE", "amountRaw": "120000000000000000000000000"},
+    {"order": 4, "id": "rewards-year-4-reserve", "safe": "SET_REWARDS_Y4_RESERVE_SAFE", "amountRaw": "90000000000000000000000000"},
+    {"order": 5, "id": "team-founders-reserve", "safe": "SET_TEAM_FOUNDERS_RESERVE_SAFE", "amountRaw": "150000000000000000000000000"},
+    {"order": 6, "id": "marketing-operations", "safe": "SET_MARKETING_OPERATIONS_SAFE", "amountRaw": "5000000000000000000000000"},
+    {"order": 7, "id": "marketing-milestone-reserve", "safe": "SET_MARKETING_MILESTONE_RESERVE_SAFE", "amountRaw": "95000000000000000000000000"},
+    {"order": 8, "id": "ecosystem-reserve", "safe": "SET_ECOSYSTEM_RESERVE_SAFE", "amountRaw": "100000000000000000000000000"},
+    {"order": 9, "id": "dex-liquidity-reserve", "safe": "SET_LIQUIDITY_RESERVE_SAFE", "amountRaw": "50000000000000000000000000"}
+  ],
+  "receipts": {
+    "deploymentTransactions": [],
+    "distributionSafeTransaction": "SET_AFTER_EXECUTION",
+    "deploymentBlock": "SET_AFTER_EXECUTION",
+    "distributionBlock": "SET_AFTER_EXECUTION",
+    "verificationArtifact": "SET_AFTER_VERIFICATION"
+  },
+  "postconditions": {
+    "genesisBalanceRaw": "0",
+    "recipientBalancesExact": true,
+    "totalSupplyRaw": "1000000000000000000000000000",
+    "marketOpen": false
+  }
+}

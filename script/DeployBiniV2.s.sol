@@ -5,7 +5,6 @@ import {Script} from "forge-std/Script.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {BiniTokenV2} from "../src/BiniTokenV2.sol";
-import {BiniMigrationVault} from "../src/BiniMigrationVault.sol";
 
 contract DeployBiniV2 is Script {
     struct DeploymentConfig {
@@ -14,7 +13,6 @@ contract DeployBiniV2 is Script {
         address executor;
         address emergencyPauserSafe;
         address genesisDistributionSafe;
-        address v1Token;
         uint48 adminTransferDelay;
     }
 
@@ -22,7 +20,6 @@ contract DeployBiniV2 is Script {
         TimelockController timelock;
         BiniTokenV2 implementation;
         BiniTokenV2 token;
-        BiniMigrationVault migrationVault;
     }
 
     function run() external returns (Deployment memory deployed) {
@@ -36,7 +33,6 @@ contract DeployBiniV2 is Script {
         require(config.executor.code.length > 0, "EXECUTOR_NOT_CONTRACT");
         require(config.emergencyPauserSafe.code.length > 0, "PAUSER_NOT_CONTRACT");
         require(config.genesisDistributionSafe.code.length > 0, "GENESIS_NOT_CONTRACT");
-        require(config.v1Token.code.length > 0, "V1_NOT_CONTRACT");
 
         address[] memory proposers = new address[](1);
         proposers[0] = config.proposer;
@@ -59,8 +55,6 @@ contract DeployBiniV2 is Script {
             )
         );
         deployed.token = BiniTokenV2(address(proxy));
-        deployed.migrationVault =
-            new BiniMigrationVault(config.v1Token, address(deployed.token), address(deployed.timelock));
         vm.stopBroadcast();
 
         require(deployed.token.totalSupply() == deployed.token.MAX_SUPPLY(), "BAD_SUPPLY");
@@ -69,16 +63,8 @@ contract DeployBiniV2 is Script {
             "BAD_GENESIS_BALANCE"
         );
         require(deployed.token.defaultAdmin() == address(deployed.timelock), "BAD_TOKEN_ADMIN");
-        require(
-            deployed.migrationVault.hasRole(deployed.migrationVault.DEFAULT_ADMIN_ROLE(), address(deployed.timelock)),
-            "BAD_VAULT_ADMIN"
-        );
         require(!deployed.token.marketOpen(), "MARKET_ALREADY_OPEN");
         require(!deployed.token.hasRole(deployed.token.DEFAULT_ADMIN_ROLE(), msg.sender), "DEPLOYER_TOKEN_ROLE");
-        require(
-            !deployed.migrationVault.hasRole(deployed.migrationVault.DEFAULT_ADMIN_ROLE(), msg.sender),
-            "DEPLOYER_VAULT_ROLE"
-        );
     }
 
     function _loadConfig() private view returns (DeploymentConfig memory config) {
@@ -88,7 +74,6 @@ contract DeployBiniV2 is Script {
         config.executor = vm.envAddress("BINI_V2_TIMELOCK_EXECUTOR");
         config.emergencyPauserSafe = vm.envAddress("BINI_V2_EMERGENCY_PAUSER_SAFE");
         config.genesisDistributionSafe = vm.envAddress("BINI_V2_GENESIS_DISTRIBUTION_SAFE");
-        config.v1Token = vm.envAddress("BINI_V2_V1_TOKEN");
         uint256 rawAdminTransferDelay = vm.envUint("BINI_V2_ADMIN_TRANSFER_DELAY");
 
         require(rawAdminTransferDelay <= type(uint48).max, "ADMIN_TRANSFER_DELAY_OVERFLOW");

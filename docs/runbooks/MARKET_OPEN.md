@@ -10,11 +10,13 @@ Deploy the implementation and atomically initialize the UUPS proxy using
 
 Required values:
 
-- `EXPECTED_CHAIN_ID`;
-- `ADMIN_TIMELOCK`;
-- `EMERGENCY_PAUSER_SAFE`;
-- `GENESIS_DISTRIBUTION_SAFE`;
-- `ADMIN_TRANSFER_DELAY`.
+- `BINI_V2_EXPECTED_CHAIN_ID`;
+- `BINI_V2_TIMELOCK_MIN_DELAY`;
+- `BINI_V2_TIMELOCK_PROPOSER`;
+- `BINI_V2_TIMELOCK_EXECUTOR`;
+- `BINI_V2_EMERGENCY_PAUSER_SAFE`;
+- `BINI_V2_GENESIS_DISTRIBUTION_SAFE`;
+- `BINI_V2_ADMIN_TRANSFER_DELAY`.
 
 Verify metadata, fixed supply, proxy implementation, ERC-7201 storage slot and
 all roles immediately after deployment.
@@ -45,7 +47,8 @@ Candidate addresses are not automatically production-ratified.
 Generate the reviewed schedule/execute payloads with:
 
 ```sh
-EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 configure-market --network <network>
+EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 configure-market --network <network> \
+  --policy config/<network>.dex-policy.json
 ```
 
 ## 3. PRE_MARKET Verification
@@ -68,7 +71,8 @@ Confirm on-chain:
 Generate the deterministic Timelock schedule and execute proposals:
 
 ```sh
-EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 open-market --network <network>
+EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 open-market --network <network> \
+  --policy config/<network>.dex-policy.json
 ```
 
 The package contains exactly:

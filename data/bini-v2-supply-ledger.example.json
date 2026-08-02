@@ -1,5 +1,17 @@
 {
-  "note": "Schema example only. The sole executable source of allocation amounts is data/bini-v2-supply-ledger.json.",
-  "requiredTopLevelFields": ["ledgerVersion", "totalSupplyRaw", "allocations"],
-  "requiredAllocationFields": ["allocationId", "category", "recipient", "amountRaw", "sourceBucket", "vestingRequired", "immediatelyLiquid"]
+  "ledgerVersion": "bini-v2-phase1-nine-safe-v1",
+  "phase": "PHASE_1",
+  "illustrativeInputs": true,
+  "totalSupplyRaw": "1000000000000000000000000000",
+  "allocations": [
+    {"allocationId":"rewards-year-1","economicPool":"Rewards","category":"Rewards Year 1","recipientConfigKey":"rewardsY1Safe","recipient":"0x0000000000000000000000000000000000002001","amountRaw":"210000000000000000000000000"},
+    {"allocationId":"rewards-year-2-reserve","economicPool":"Rewards","category":"Rewards Year 2 Reserve","recipientConfigKey":"rewardsY2ReserveSafe","recipient":"0x0000000000000000000000000000000000002002","amountRaw":"180000000000000000000000000"},
+    {"allocationId":"rewards-year-3-reserve","economicPool":"Rewards","category":"Rewards Year 3 Reserve","recipientConfigKey":"rewardsY3ReserveSafe","recipient":"0x0000000000000000000000000000000000002003","amountRaw":"120000000000000000000000000"},
+    {"allocationId":"rewards-year-4-reserve","economicPool":"Rewards","category":"Rewards Year 4 Reserve","recipientConfigKey":"rewardsY4ReserveSafe","recipient":"0x0000000000000000000000000000000000002004","amountRaw":"90000000000000000000000000"},
+    {"allocationId":"team-founders-reserve","economicPool":"Team & Founders","category":"Team & Founders Reserve","recipientConfigKey":"teamFoundersReserveSafe","recipient":"0x0000000000000000000000000000000000002005","amountRaw":"150000000000000000000000000"},
+    {"allocationId":"marketing-operations","economicPool":"Marketing","category":"Marketing Operations","recipientConfigKey":"marketingOperationsSafe","recipient":"0x0000000000000000000000000000000000002006","amountRaw":"5000000000000000000000000"},
+    {"allocationId":"marketing-milestone-reserve","economicPool":"Marketing","category":"Marketing Milestone Reserve","recipientConfigKey":"marketingMilestoneReserveSafe","recipient":"0x0000000000000000000000000000000000002007","amountRaw":"95000000000000000000000000"},
+    {"allocationId":"ecosystem-reserve","economicPool":"Ecosystem Reserve","category":"Ecosystem Reserve","recipientConfigKey":"ecosystemReserveSafe","recipient":"0x0000000000000000000000000000000000002008","amountRaw":"100000000000000000000000000"},
+    {"allocationId":"dex-liquidity-reserve","economicPool":"DEX Liquidity","category":"DEX Liquidity Reserve","recipientConfigKey":"liquidityReserveSafe","recipient":"0x0000000000000000000000000000000000002009","amountRaw":"50000000000000000000000000"}
+  ]
 }

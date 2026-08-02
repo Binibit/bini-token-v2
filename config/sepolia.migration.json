@@ -1,0 +1,16 @@
+{
+  "$schema": "./migration.schema.json",
+  "network": "sepolia",
+  "phase": "PHASE_2",
+  "chainId": 11155111,
+  "illustrativeInputs": true,
+  "v1Token": "0x0000000000000000000000000000000000003001",
+  "v2Proxy": "0x0000000000000000000000000000000000003002",
+  "migrationVault": "0x0000000000000000000000000000000000003003",
+  "conversionFactor": "1000000",
+  "fundingReserveSafe": "0x0000000000000000000000000000000000002008",
+  "fundingReserveRaw": "1",
+  "migrationStart": "OWNER_RATIFICATION_REQUIRED",
+  "holderManifestHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "expectedVaultCreationBytecodeHash": "0x92af2dc53fc34d116fe0fa8062b920dcb5cd4b0fd2dc89f610f5e582c7d1e4e0"
+}

@@ -25,6 +25,16 @@
 - [Upgrade runbook](runbooks/UPGRADE.md)
 - [Emergency runbook](runbooks/EMERGENCY.md)
 
+## RC1 Review
+
+- [Source and CI reality](../review/01_SOURCE_AND_CI_REALITY.md)
+- [Token and DEX policy](../review/02_TOKEN_AND_DEX_POLICY.md)
+- [Phase 1 distribution](../review/03_PHASE1_DISTRIBUTION.md)
+- [Migration Vault](../review/04_MIGRATION_VAULT.md)
+- [CLI safety](../review/05_CLI_AND_EXECUTION_SAFETY.md)
+- [Test evidence](../review/06_TEST_AND_SECURITY_EVIDENCE.md)
+- [Sepolia Phase 1 package](../review/07_SEPOLIA_PHASE1_PACKAGE.md)
+
 ## Machine-Readable Sources
 
 - `config/governance-manifest.rehearsal.json`: non-production address and

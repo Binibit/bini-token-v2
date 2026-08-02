@@ -1,0 +1,15 @@
+{
+  "$schema": "./dex-policy.schema.json",
+  "network": "sepolia",
+  "phase": "PHASE_3",
+  "chainId": 11155111,
+  "illustrativeInputs": true,
+  "expectedPolicyState": "PRE_MARKET_BLOCKED",
+  "factories": [
+    {"name": "Sepolia V2 factory placeholder", "kind": "UNISWAP_V2", "address": "0x0000000000000000000000000000000000006001", "runtimeCodeHash": "0x1111111111111111111111111111111111111111111111111111111111111111"},
+    {"name": "Sepolia V3 factory placeholder", "kind": "UNISWAP_V3", "address": "0x0000000000000000000000000000000000006002", "runtimeCodeHash": "0x2222222222222222222222222222222222222222222222222222222222222222"}
+  ],
+  "infrastructure": [
+    {"name": "Sepolia V4 PoolManager placeholder", "kind": "POOL_MANAGER", "address": "0x0000000000000000000000000000000000006003", "runtimeCodeHash": "0x3333333333333333333333333333333333333333333333333333333333333333"}
+  ]
+}

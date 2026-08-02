@@ -4,7 +4,7 @@
   "private": true,
   "description": "Pinned validation tooling for the BINI V2 Foundry project",
   "scripts": {
-    "validate:upgrades": "openzeppelin-upgrades-core validate out/build-info --contract src/BiniTokenV2.sol:BiniTokenV2"
+    "validate:upgrades": "tools/validate-upgrades.sh"
   },
   "devDependencies": {
     "@openzeppelin/upgrades-core": "1.46.0"

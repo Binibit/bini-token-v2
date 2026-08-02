@@ -15,6 +15,7 @@ wallet. Telegram, email and spreadsheet edits are not authorization.
 
 ```sh
 ./bin/bini-v2 migration-plan --network sepolia \
+  --migration-config config/sepolia.migration.json \
   --holders data/v1-v2-known-holders.csv
 ```
 
@@ -32,6 +33,7 @@ rejected on-chain.
 
 ```sh
 EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 migrate --network sepolia \
+  --migration-config config/sepolia.migration.json \
   --holders data/v1-v2-known-holders.csv --batch batch-01
 ```
 
@@ -51,3 +53,10 @@ aggregate invariants are `totalReleasedV2 == totalLockedV1 * 1,000,000`, vault
 V2 balance covers remaining liability, no holder migrated twice and
 `marketOpen() == false`. Preserve failed receipts; never mark a reverted call as
 successful or retry it under a changed row/hash.
+
+Generate the machine-readable reconciliation receipt with:
+
+```sh
+EXECUTION_MODE=SIMULATE ./bin/bini-v2 verify-migration --network sepolia \
+  --migration-config config/sepolia.migration.json
+```
