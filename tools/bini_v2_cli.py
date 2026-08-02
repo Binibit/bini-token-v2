@@ -763,7 +763,7 @@ def preflight(context: Context, *, require_rpc: bool) -> dict[str, Any]:
             raise ReleaseError(f"required executable not found: {executable}")
     status = run(["git", "status", "--porcelain"])
     if status:
-        raise ReleaseError("Git working tree is dirty")
+        raise ReleaseError(f"Git working tree is dirty:\n{status}")
     head = run(["git", "rev-parse", "HEAD"])
     expected = os.environ.get("EXPECTED_GIT_COMMIT") or context.config.get("expectedGitCommit")
     if not isinstance(expected, str) or expected != head:
