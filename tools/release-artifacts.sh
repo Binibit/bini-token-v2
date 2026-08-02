@@ -18,10 +18,14 @@ forge build --silent
 forge inspect BiniTokenV2 abi --json | jq -S . > "$WORK/BINI_V2_CORE_ABI.json"
 forge inspect BiniTokenV2 methods --json | jq -S . > "$WORK/BINI_V2_CORE_SELECTORS.json"
 forge inspect BiniTokenV2 storageLayout --json | jq -S . > "$WORK/compiler-storage.json"
+forge inspect BiniMigrationVault abi --json | jq -S . > "$WORK/BINI_V2_MIGRATION_VAULT_ABI.json"
 
 creation_hash="$(forge inspect BiniTokenV2 bytecode | cast keccak)"
 runtime_hash="$(forge inspect BiniTokenV2 deployedBytecode | cast keccak)"
 abi_hash="$(jq -cS . "$WORK/BINI_V2_CORE_ABI.json" | cast keccak)"
+vault_creation_hash="$(forge inspect BiniMigrationVault bytecode | cast keccak)"
+vault_runtime_hash="$(forge inspect BiniMigrationVault deployedBytecode | cast keccak)"
+vault_abi_hash="$(jq -cS . "$WORK/BINI_V2_MIGRATION_VAULT_ABI.json" | cast keccak)"
 
 jq -n \
   --arg creation "$creation_hash" \
@@ -40,6 +44,24 @@ jq -n \
     abiKeccak256: $abi,
     note: "Regenerate after any source, compiler, dependency or Foundry configuration change."
   }' > "$WORK/BINI_V2_BUILD.json"
+
+jq -n \
+  --arg creation "$vault_creation_hash" \
+  --arg runtime "$vault_runtime_hash" \
+  --arg abi "$vault_abi_hash" \
+  '{
+    contract: "BiniMigrationVault",
+    source: "src/BiniMigrationVault.sol",
+    solidity: "0.8.24",
+    foundry: "1.5.1",
+    evmVersion: "cancun",
+    optimizer: {enabled: true, runs: 200},
+    bytecodeHashMode: "none",
+    creationBytecodeKeccak256: $creation,
+    runtimeBytecodeKeccak256: $runtime,
+    abiKeccak256: $abi,
+    note: "Migration vault is immutable; regenerate after any source, compiler or dependency change."
+  }' > "$WORK/BINI_V2_MIGRATION_VAULT_BUILD.json"
 
 jq -nS \
   --slurpfile compiler "$WORK/compiler-storage.json" \

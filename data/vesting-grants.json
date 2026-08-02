@@ -1,0 +1,7 @@
+{
+  "version": "bini-v2-vesting-v1",
+  "grants": [
+    {"grantId": "team-aggregate-001", "beneficiary": "0x0000000000000000000000000000000000003201", "vestingContract": "0x0000000000000000000000000000000000003101", "amountRaw": "150000000000000000000000000", "start": "1785542400", "cliff": "31536000", "duration": "126144000", "category": "TEAM", "sourceBucket": "Team Vesting", "auditedImplementationApproved": true},
+    {"grantId": "partner-aggregate-001", "beneficiary": "0x0000000000000000000000000000000000003202", "vestingContract": "0x0000000000000000000000000000000000003102", "amountRaw": "100000000000000000000000000", "start": "1785542400", "cliff": "15552000", "duration": "63072000", "category": "PARTNER_INVESTOR", "sourceBucket": "Partner/Investor Vesting", "auditedImplementationApproved": true}
+  ]
+}

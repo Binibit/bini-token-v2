@@ -58,6 +58,26 @@ npm ci --ignore-scripts
 make release-check
 ```
 
+## Release CLI
+
+The root CLI covers deployment, fixed-supply distribution, controlled V1
+migration, verification and status. Every command defaults to non-transacting
+`PLAN` mode:
+
+```sh
+./bin/bini-v2 preflight --network sepolia
+./bin/bini-v2 deploy --network sepolia --config config/sepolia.json
+./bin/bini-v2 distribute --network sepolia --ledger data/bini-v2-supply-ledger.json
+./bin/bini-v2 migration-plan --network sepolia --holders data/v1-v2-known-holders.csv
+./bin/bini-v2 migrate --network sepolia --holders data/v1-v2-known-holders.csv --batch batch-01
+./bin/bini-v2 verify --network sepolia
+./bin/bini-v2 status --network sepolia
+```
+
+Committed network and holder data are illustrative and intentionally fail all
+executing preflights until ratified values replace them. See the deployment,
+distribution and migration runbooks before changing that gate.
+
 Useful narrower commands:
 
 ```sh
@@ -76,6 +96,8 @@ deployment evidence.
 ## Project Map
 
 - `src/`: canonical token implementation
+- `bin/bini-v2`: stable release operator entrypoint
+- `data/`: versioned supply, vesting and migration inputs
 - `test/`: unit, E2E, invariant, governance, upgrade and pinned fork suites
 - `script/`: environment-driven ERC-1967/UUPS deployment
 - `config/`: governance rehearsal manifest and ERC-7201 schema

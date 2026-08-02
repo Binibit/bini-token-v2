@@ -1,0 +1,4 @@
+{
+  "note": "Schema example only. Copy approved grants into data/vesting-grants.json.",
+  "requiredGrantFields": ["grantId", "beneficiary", "vestingContract", "amountRaw", "start", "cliff", "duration", "category", "sourceBucket", "auditedImplementationApproved"]
+}

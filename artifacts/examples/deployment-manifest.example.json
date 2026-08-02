@@ -1,0 +1,22 @@
+{
+  "chainId": 11155111,
+  "network": "sepolia",
+  "deploymentTimestamp": "SET_FROM_CONFIRMED_BLOCK",
+  "deploymentBlock": "SET_FROM_RECEIPT",
+  "deployer": "SET_FROM_KEYSTORE_ACCOUNT",
+  "implementation": "SET_FROM_RECEIPT",
+  "proxy": "SET_FROM_RECEIPT",
+  "migrationVault": "SET_FROM_RECEIPT",
+  "timelock": "SET_FROM_RECEIPT",
+  "safes": {},
+  "transactionHashes": [],
+  "compilerVersion": "0.8.24",
+  "foundryVersion": "1.5.1",
+  "openzeppelinDependencyShas": {},
+  "creationBytecodeHash": "SET_FROM_BUILD",
+  "runtimeBytecodeHash": "SET_FROM_CHAIN",
+  "abiHash": "SET_FROM_BUILD",
+  "storageLayoutHash": "SET_FROM_BUILD",
+  "gitCommit": "SET_FROM_RELEASE_COMMIT",
+  "workingTreeStatus": "clean"
+}

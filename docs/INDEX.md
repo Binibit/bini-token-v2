@@ -18,6 +18,9 @@
 
 - [Release checklist](release/RELEASE_CHECKLIST.md)
 - [Deployment runbook](runbooks/DEPLOYMENT.md)
+- [Initial distribution runbook](runbooks/INITIAL_DISTRIBUTION.md)
+- [V1 to V2 migration runbook](runbooks/V1_V2_MIGRATION.md)
+- [Rollback and incidents](runbooks/ROLLBACK_AND_INCIDENTS.md)
 - [Market opening runbook](runbooks/MARKET_OPEN.md)
 - [Upgrade runbook](runbooks/UPGRADE.md)
 - [Emergency runbook](runbooks/EMERGENCY.md)

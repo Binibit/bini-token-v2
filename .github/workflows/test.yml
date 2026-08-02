@@ -66,6 +66,9 @@ jobs:
       - name: Run local tests
         run: forge test --no-match-path "test/fork/*" -vv
 
+      - name: Run release CLI tests
+        run: python3 -m unittest discover -s test_cli -p 'test_*.py' -v
+
       - name: Run pinned mainnet-fork tests
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
@@ -81,5 +84,7 @@ jobs:
         run: >-
           jq empty
           artifacts/release/*.json
+          artifacts/examples/*.json
           config/*.json
+          data/*.json
           policy/*.json

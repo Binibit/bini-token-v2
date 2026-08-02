@@ -1,0 +1,2 @@
+holderId,category,v1Address,v2Recipient,v1RawAmount,v2RawAmount,conversionRate,ownershipVerification,migrationMethod,vestingGrantId,batch,status,notes
+holder-001,INVESTOR,0x0000000000000000000000000000000000005001,0x0000000000000000000000000000000000005001,1000000000000,1000000000000000000,1000000,PENDING,SELF_SERVICE,,batch-01,PLANNED,One BINI example

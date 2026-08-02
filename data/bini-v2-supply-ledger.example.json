@@ -1,0 +1,5 @@
+{
+  "note": "Schema example only. The sole executable source of allocation amounts is data/bini-v2-supply-ledger.json.",
+  "requiredTopLevelFields": ["ledgerVersion", "totalSupplyRaw", "allocations"],
+  "requiredAllocationFields": ["allocationId", "category", "recipient", "amountRaw", "sourceBucket", "vestingRequired", "immediatelyLiquid"]
+}

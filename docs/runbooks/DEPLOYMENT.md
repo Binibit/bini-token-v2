@@ -1,111 +1,71 @@
-# Deployment Runbook
+# BINI V2 Deployment Runbook
 
-## Inputs
+## Security boundary
 
-The deployment script requires:
+Deployment creates a new `TimelockController`, frozen `BiniTokenV2`
+implementation, atomically initialized ERC-1967 proxy and immutable
+`BiniMigrationVault`. It does not deploy an unaudited vesting implementation,
+distribute supply, configure DEX infrastructure or call `openMarket()`.
 
-- `EXPECTED_CHAIN_ID`
-- `ADMIN_TIMELOCK`
-- `EMERGENCY_PAUSER_SAFE`
-- `GENESIS_DISTRIBUTION_SAFE`
-- `ADMIN_TRANSFER_DELAY`
-- an RPC URL and broadcaster key supplied through the normal Foundry flow
+The complete fixed supply is minted once to the Genesis Distribution Safe. The
+deployer receives no token or vault role. Mainnet requires a separate written
+authorization after a successful Sepolia rehearsal.
 
-All three addresses must contain deployed code before execution.
+## Configure
 
-## Credential Model
+1. Replace every illustrative address in `config/sepolia.json` with ratified
+   deployed Safe/V1 addresses and exact thresholds.
+2. Export the reviewed commit independently:
 
-The deployment signer and token administration are different things:
+   ```sh
+   export EXPECTED_GIT_COMMIT="$(git rev-parse HEAD)"
+   export SEPOLIA_RPC_URL="https://..."
+   ```
 
-- the deployer account signs the implementation and proxy deployment
-  transactions;
-- `ADMIN_TIMELOCK` is the address of an already deployed `TimelockController`,
-  not the deployer's EOA;
-- `EMERGENCY_PAUSER_SAFE` and `GENESIS_DISTRIBUTION_SAFE` are already deployed
-  contract wallets;
-- a Safe owner mnemonic or private key is never passed to the token
-  initializer.
+3. Import a dedicated deployer private key through Foundry's hidden prompt:
 
-Never place a mnemonic or raw private key in `.env`, shell history, a command
-argument, source control, CI variables or chat. Prefer a hardware wallet for
-mainnet. For a dedicated Sepolia/deployer key, import it into Foundry's encrypted
-keystore through the hidden prompt:
+   ```sh
+   cast wallet import bini-deployer --interactive
+   export DEPLOYER_ACCOUNT=bini-deployer
+   export DEPLOYER_ADDRESS="$(cast wallet address --account bini-deployer)"
+   ```
 
-```sh
-cast wallet import bini-deployer --interactive
-cast wallet address --account bini-deployer
-cast wallet list
-```
+Never put a raw key, mnemonic, keystore password or Safe signer key in `.env`, a
+command argument, source control, CI, chat or a deployment manifest. Prefer a
+hardware wallet for mainnet.
 
-The first command asks for the raw private key and then a new keystore password
-without writing the key into command history. If the only available credential
-is a seed phrase, do not convert or paste it on an online machine; use the
-hardware wallet that holds it or create a separate, limited deployer account.
-
-Create the non-secret environment file:
+## Gates and simulation
 
 ```sh
-cp .env.example .env
-chmod 600 .env
-${EDITOR:-nano} .env
-set -a
-source .env
-set +a
+make release-check
+./bin/bini-v2 preflight --network sepolia
+EXECUTION_MODE=SIMULATE ./bin/bini-v2 deploy \
+  --network sepolia --config config/sepolia.json
 ```
 
-`.env` contains RPC, contract addresses, delay, account name and deployer
-address. It must not contain the keystore password, mnemonic or private key.
+Preflight is fatal on a dirty tree, commit/chain mismatch, missing contract
+code, incorrect Safe threshold, invalid ledger, duplicate migration holder or
+inexact decimal conversion.
 
-## Preflight
-
-1. Check out the reviewed release commit and initialize submodules.
-2. Run `npm ci --ignore-scripts` and `make release-check`.
-3. Match every address and delay to the ratified governance manifest.
-4. Confirm chain id, deployer balance, nonce and expected proxy address.
-5. Load `.env` and run `make deploy-preflight`.
-6. Simulate the exact command without broadcast and archive the trace.
-
-## Deploy
-
-Example for a simulation:
+## Authorized Sepolia broadcast
 
 ```sh
-forge script script/DeployBiniTokenV2.s.sol:DeployBiniTokenV2 \
-  --rpc-url "$DEPLOY_RPC_URL" \
-  --account "$DEPLOYER_ACCOUNT" \
-  --sender "$DEPLOYER_ADDRESS" \
-  -vvvv
+EXECUTION_MODE=BROADCAST ./bin/bini-v2 deploy \
+  --network sepolia --config config/sepolia.json
 ```
 
-The simulation does not publish transactions. After its trace, addresses and
-gas estimate have been independently reviewed, the separately approved
-broadcast command is:
+The CLI uses the encrypted keystore, reads confirmed Foundry receipts, refuses
+to overwrite an existing manifest, verifies code and `PRE_MARKET`, then writes
+`artifacts/deployments/sepolia/deployment.json`. Re-running checks the recorded
+contracts on-chain and reports `ALREADY_RECORDED`.
+
+## Immediate verification
 
 ```sh
-forge script script/DeployBiniTokenV2.s.sol:DeployBiniTokenV2 \
-  --rpc-url "$DEPLOY_RPC_URL" \
-  --account "$DEPLOYER_ACCOUNT" \
-  --sender "$DEPLOYER_ADDRESS" \
-  --broadcast \
-  --verify \
-  --etherscan-api-key "$ETHERSCAN_API_KEY" \
-  -vvvv
+./bin/bini-v2 verify --network sepolia
+./bin/bini-v2 status --network sepolia
 ```
 
-For a hardware wallet, replace `--account "$DEPLOYER_ACCOUNT"` with `--ledger`
-or `--trezor`. Never add `--private-key` or `--mnemonic` to a production command.
-
-## Immediate Verification
-
-- proxy implementation slot equals the deployed implementation;
-- implementation initializers are disabled;
-- `name`, `symbol`, `decimals`, cap and total supply match the fixed properties;
-- the genesis Safe owns the entire initial supply;
-- Timelock and pauser roles match the manifest;
-- `marketState() == PRE_MARKET`;
-- token is not paused;
-- implementation and proxy source are explorer-verified;
-- bytecode hashes match `artifacts/release/BINI_V2_BUILD.json`.
-
-No DEX configuration or distribution should begin until this verification is
-signed off.
+Archive the manifest, broadcast receipts, verification artifact, explorer
+links, Safe owner confirmations and release commit. Stop if any address, hash,
+role, supply, vault link or market state differs.

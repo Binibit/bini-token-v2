@@ -1,0 +1,16 @@
+{
+  "contract": "BiniMigrationVault",
+  "source": "src/BiniMigrationVault.sol",
+  "solidity": "0.8.24",
+  "foundry": "1.5.1",
+  "evmVersion": "cancun",
+  "optimizer": {
+    "enabled": true,
+    "runs": 200
+  },
+  "bytecodeHashMode": "none",
+  "creationBytecodeKeccak256": "0xf2e6c8ef31d20c22b6e3bc3751b9895624dc44698d1ed8550aba11dfd27ec870",
+  "runtimeBytecodeKeccak256": "0xf75649513bdbac9ddbca5d583d12073b6d25cde9f31160c94d4d816ae768c01c",
+  "abiKeccak256": "0x41f395bbc86554b640f0001b9b253c447665f60f58bd6306219cefacbc7ac494",
+  "note": "Migration vault is immutable; regenerate after any source, compiler or dependency change."
+}

@@ -1,14 +1,17 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: build test test-local test-fork coverage audit artifacts release-check deploy-preflight
+.PHONY: build test test-local test-cli test-fork coverage audit artifacts release-check deploy-preflight
 
 build:
 	forge build --sizes
 
-test: test-local test-fork
+test: test-local test-cli test-fork
 
 test-local:
 	forge test --no-match-path 'test/fork/*' -vv
+
+test-cli:
+	python3 -m unittest discover -s test_cli -p 'test_*.py' -v
 
 test-fork:
 	tools/test-mainnet-fork.sh
