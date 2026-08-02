@@ -90,7 +90,8 @@ command -v forge >/dev/null || fail "forge is not installed"
 command -v cast >/dev/null || fail "cast is not installed"
 command -v jq >/dev/null || fail "jq is not installed"
 
-[[ -z "$(git status --porcelain)" ]] || fail "Git working tree must be clean"
+DIRTY_STATUS="$(git status --porcelain)"
+[[ -z "$DIRTY_STATUS" ]] || fail "Git working tree must be clean: $DIRTY_STATUS"
 
 anvil --port "$PORT" --chain-id 31337 --auto-impersonate --silent >"$ANVIL_LOG" 2>&1 &
 ANVIL_PID=$!
