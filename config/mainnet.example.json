@@ -6,7 +6,7 @@
   "expectedGitCommit": "SET_VIA_EXPECTED_GIT_COMMIT_ENV",
   "illustrativeInputs": true,
   "expectedTokenCreationBytecodeHash": "0x6f048525545cc80f49c8c203f65d605beae18a4b0cc2d24bafaa9a57efebe872",
-  "expectedVaultCreationBytecodeHash": "0xf2e6c8ef31d20c22b6e3bc3751b9895624dc44698d1ed8550aba11dfd27ec870",
+  "expectedVaultCreationBytecodeHash": "0x92af2dc53fc34d116fe0fa8062b920dcb5cd4b0fd2dc89f610f5e582c7d1e4e0",
   "minDeployerBalanceWei": "500000000000000000",
   "timelockMinDelay": 172800,
   "adminTransferDelay": 172800,
@@ -28,5 +28,14 @@
     "0x0000000000000000000000000000000000002006": 2,
     "0x0000000000000000000000000000000000002007": 2,
     "0x0000000000000000000000000000000000002008": 2
+  },
+  "dexPolicy": {
+    "factories": [
+      {"name": "Uniswap V2 Factory", "kind": "UNISWAP_V2", "address": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f", "runtimeCodeHash": "0xbab145d02e7005f0d84c6c1639d39b799b0ea16df99ebbdaf5a14d9da820b4e0"},
+      {"name": "Uniswap V3 Factory", "kind": "UNISWAP_V3", "address": "0x1F98431c8aD98523631AE4a59f267346ea31F984", "runtimeCodeHash": "0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69"}
+    ],
+    "infrastructure": [
+      {"name": "Uniswap V4 PoolManager", "address": "0x000000000004444c5dc75cB358380D2e3dE08A90", "runtimeCodeHash": "0x785f1014552b7ce7d5fb7d0c970ca60edee94fd00425d7ca21609acac7ce1293"}
+    ]
   }
 }

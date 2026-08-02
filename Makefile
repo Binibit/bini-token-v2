@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: build test test-local test-cli test-fork coverage audit artifacts release-check deploy-preflight
+.PHONY: build test test-local test-cli test-anvil test-fork coverage audit artifacts release-check deploy-preflight
 
 build:
 	forge build --sizes
@@ -12,6 +12,9 @@ test-local:
 
 test-cli:
 	python3 -m unittest discover -s test_cli -p 'test_*.py' -v
+
+test-anvil:
+	tools/test-release-anvil.sh
 
 test-fork:
 	tools/test-mainnet-fork.sh

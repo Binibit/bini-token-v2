@@ -16,6 +16,7 @@ slither . \
 tools/release-artifacts.sh check
 forge test --no-match-path 'test/fork/*' -vv
 python3 -m unittest discover -s test_cli -p 'test_*.py' -v
+tools/test-release-anvil.sh
 tools/test-mainnet-fork.sh
 tools/coverage-gate.sh
 

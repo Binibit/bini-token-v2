@@ -953,6 +953,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "NoEntitlementsConfigured",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",

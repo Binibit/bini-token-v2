@@ -49,6 +49,7 @@ contract BiniMigrationVault is AccessControl, EIP712, ReentrancyGuard {
     error DuplicateAction(bytes32 actionId);
     error EntitlementsAlreadySealed();
     error EntitlementsNotSealed();
+    error NoEntitlementsConfigured();
     error InsufficientMigrationReserve(uint256 required, uint256 available);
     error MigrationAlreadyCompleted(address holder);
     error AmountDoesNotMatchEntitlement(uint256 expected, uint256 actual);
@@ -124,6 +125,7 @@ contract BiniMigrationVault is AccessControl, EIP712, ReentrancyGuard {
 
     function sealEntitlements() external onlyRole(CONFIG_ROLE) {
         if (entitlementsSealed) revert EntitlementsAlreadySealed();
+        if (totalEntitledV1 == 0) revert NoEntitlementsConfigured();
         uint256 available = v2Token.balanceOf(address(this));
         if (available < totalEntitledV2) revert InsufficientMigrationReserve(totalEntitledV2, available);
         entitlementsSealed = true;

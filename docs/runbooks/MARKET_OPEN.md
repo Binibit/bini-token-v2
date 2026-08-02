@@ -6,7 +6,7 @@ for Ethereum mainnet before execution.
 ## 1. Deploy
 
 Deploy the implementation and atomically initialize the UUPS proxy using
-`script/DeployBiniTokenV2.s.sol`.
+`./bin/bini-v2 deploy` and `script/DeployBiniV2.s.sol`.
 
 Required values:
 
@@ -42,6 +42,12 @@ The full addresses and hashes are recorded in
 `config/governance-manifest.rehearsal.json` at pinned block `25,603,294`.
 Candidate addresses are not automatically production-ratified.
 
+Generate the reviewed schedule/execute payloads with:
+
+```sh
+EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 configure-market --network <network>
+```
+
 ## 3. PRE_MARKET Verification
 
 Confirm on-chain:
@@ -59,7 +65,13 @@ Confirm on-chain:
 
 ## 4. Schedule OPEN_MARKET
 
-Prepare exactly:
+Generate the deterministic Timelock schedule and execute proposals:
+
+```sh
+EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 open-market --network <network>
+```
+
+The package contains exactly:
 
 ```solidity
 BiniTokenV2.openMarket()

@@ -34,38 +34,51 @@ class ReleaseCliTest(unittest.TestCase):
         return path
 
     def ledger(self):
+        categories = [
+            "Treasury",
+            "Migration Reserve",
+            "Team Vesting",
+            "Partner/Investor Vesting",
+            "Rewards/Ecosystem",
+            "Liquidity and Market Making",
+            "Strategic/CEX Reserve",
+        ]
+        allocations = []
+        for index, category in enumerate(categories, start=1):
+            amount = 1 if index < len(categories) else cli.TOTAL_SUPPLY_RAW - (len(categories) - 1)
+            allocations.append(
+                {
+                    "allocationId": f"allocation-{index}",
+                    "category": category,
+                    "recipient": "0x" + f"{index:040x}",
+                    "amountRaw": str(amount),
+                    "sourceBucket": "Genesis",
+                    "vestingRequired": False,
+                    "immediatelyLiquid": category in {"Team Vesting", "Partner/Investor Vesting"},
+                }
+            )
         return {
             "ledgerVersion": "test-v1",
             "totalSupplyRaw": str(cli.TOTAL_SUPPLY_RAW),
-            "allocations": [
-                {
-                    "allocationId": "treasury",
-                    "category": "Treasury",
-                    "recipient": ADDRESS_1,
-                    "amountRaw": str(cli.TOTAL_SUPPLY_RAW),
-                    "sourceBucket": "Genesis",
-                    "vestingRequired": False,
-                    "immediatelyLiquid": False,
-                }
-            ],
+            "allocations": allocations,
         }
 
     def test_exact_ledger_is_accepted(self):
         document, allocations = cli.validate_ledger(self.write_json("ledger.json", self.ledger()))
         self.assertEqual(document["ledgerVersion"], "test-v1")
-        self.assertEqual(len(allocations), 1)
+        self.assertEqual(len(allocations), 7)
 
     def test_ledger_below_or_above_supply_is_rejected(self):
         for delta in (-1, 1):
             ledger = self.ledger()
-            ledger["allocations"][0]["amountRaw"] = str(cli.TOTAL_SUPPLY_RAW + delta)
+            current = int(ledger["allocations"][0]["amountRaw"])
+            ledger["allocations"][0]["amountRaw"] = str(current + delta)
             with self.subTest(delta=delta), self.assertRaises(cli.ReleaseError):
                 cli.validate_ledger(self.write_json(f"ledger-{delta}.json", ledger))
 
     def test_duplicate_and_zero_recipients_are_rejected(self):
         ledger = self.ledger()
         first = ledger["allocations"][0]
-        first["amountRaw"] = str(cli.TOTAL_SUPPLY_RAW // 2)
         ledger["allocations"].append({**first, "allocationId": "second"})
         with self.assertRaises(cli.ReleaseError):
             cli.validate_ledger(self.write_json("duplicate.json", ledger))
@@ -77,6 +90,7 @@ class ReleaseCliTest(unittest.TestCase):
     def test_direct_team_transfer_without_vesting_is_rejected(self):
         ledger = self.ledger()
         ledger["allocations"][0]["category"] = "Team Vesting"
+        ledger["allocations"][0]["immediatelyLiquid"] = False
         with self.assertRaises(cli.ReleaseError):
             cli.validate_ledger(self.write_json("team.json", ledger))
 
@@ -145,6 +159,56 @@ class ReleaseCliTest(unittest.TestCase):
 
     def test_receipt_integer_supports_foundry_hex(self):
         self.assertEqual(cli.receipt_int("0x2a", "block"), 42)
+
+    def test_cast_json_call_decodes_large_integer_and_bool(self):
+        self.assertEqual(cli.decode_cast_call('["1000000000000000000000000000"]', "supply"), "1000000000000000000000000000")
+        self.assertEqual(cli.decode_cast_call("[true]", "market state"), "true")
+        with self.assertRaises(cli.ReleaseError):
+            cli.decode_cast_call('["one", "two"]', "unexpected tuple")
+
+    def test_dex_policy_requires_v2_v3_and_unique_addresses(self):
+        config = {
+            "dexPolicy": {
+                "factories": [
+                    {"name": "v2", "kind": "UNISWAP_V2", "address": ADDRESS_1, "runtimeCodeHash": "0x" + "1" * 64}
+                ],
+                "infrastructure": [
+                    {"name": "v4", "address": ADDRESS_2, "runtimeCodeHash": "0x" + "2" * 64}
+                ],
+            }
+        }
+        with self.assertRaises(cli.ReleaseError):
+            cli.validate_dex_policy(config)
+        config["dexPolicy"]["factories"].append(
+            {"name": "v3", "kind": "UNISWAP_V3", "address": ADDRESS_2, "runtimeCodeHash": "0x" + "3" * 64}
+        )
+        with self.assertRaises(cli.ReleaseError):
+            cli.validate_dex_policy(config)
+
+    def test_timelock_package_contains_schedule_and_execute_safe_transactions(self):
+        context = cli.Context(
+            "test",
+            "PLAN",
+            self.root / "test.json",
+            {
+                "chainId": 31337,
+                "timelockMinDelay": 172800,
+                "timelockProposerSafe": ADDRESS_1,
+                "timelockExecutorSafe": ADDRESS_2,
+            },
+        )
+        deployment = {"timelock": "0x0000000000000000000000000000000000000003"}
+        calls = [
+            {
+                "to": "0x0000000000000000000000000000000000000004",
+                "value": "0",
+                "data": cli.erc20_transfer_data(ADDRESS_1, 1),
+            }
+        ]
+        package = cli.timelock_package(context, deployment, "test", calls, "input-v1")
+        self.assertEqual(package["scheduleProposal"]["transactions"][0]["data"][:10], "0x8f2a0bb0")
+        self.assertEqual(package["executeProposal"]["transactions"][0]["data"][:10], "0xe38335e5")
+        self.assertEqual(package["scheduleProposal"]["meta"]["createdFromSafeAddress"], ADDRESS_1)
 
     def test_integer_parser_rejects_float_and_negative(self):
         for value in (1.5, "1.0", "-1", True):

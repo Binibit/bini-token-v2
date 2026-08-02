@@ -9,8 +9,8 @@
     "runs": 200
   },
   "bytecodeHashMode": "none",
-  "creationBytecodeKeccak256": "0xf2e6c8ef31d20c22b6e3bc3751b9895624dc44698d1ed8550aba11dfd27ec870",
-  "runtimeBytecodeKeccak256": "0xf75649513bdbac9ddbca5d583d12073b6d25cde9f31160c94d4d816ae768c01c",
-  "abiKeccak256": "0x41f395bbc86554b640f0001b9b253c447665f60f58bd6306219cefacbc7ac494",
+  "creationBytecodeKeccak256": "0x92af2dc53fc34d116fe0fa8062b920dcb5cd4b0fd2dc89f610f5e582c7d1e4e0",
+  "runtimeBytecodeKeccak256": "0x1d6c0ba26c697d8f8381b6c54893bbf85aa115a7d2ac82436a4a6e34f03634e6",
+  "abiKeccak256": "0x6c25e3afaad27b95728c633209c5555c0ac8f8d89dc1761c7c2087e8a30763b9",
   "note": "Migration vault is immutable; regenerate after any source, compiler or dependency change."
 }

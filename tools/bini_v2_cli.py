@@ -22,7 +22,10 @@ TOTAL_SUPPLY_RAW = 1_000_000_000 * 10**18
 V1_TO_V2_SCALE = 1_000_000
 MODES = ("PLAN", "SIMULATE", "SAFE_PROPOSAL", "BROADCAST")
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+HASH_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 ZERO_ADDRESS = "0x" + "0" * 40
+ZERO_HASH = "0x" + "0" * 64
+ERC1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
 CSV_COLUMNS = (
     "holderId",
     "category",
@@ -102,6 +105,28 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def load_json_from_output(output: str, field: str) -> dict[str, Any]:
+    try:
+        value = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise ReleaseError(f"{field} did not return valid JSON") from exc
+    if not isinstance(value, dict):
+        raise ReleaseError(f"{field} JSON must be an object")
+    return value
+
+
+def decode_cast_call(output: str, field: str) -> str:
+    try:
+        value = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise ReleaseError(f"{field} did not return valid JSON") from exc
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], (str, int, bool)):
+        raise ReleaseError(f"{field} must return exactly one scalar value")
+    if isinstance(value[0], bool):
+        return str(value[0]).lower()
+    return str(value[0])
+
+
 def canonical_hash(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -123,6 +148,21 @@ def run(command: list[str], *, env: dict[str, str] | None = None, capture: bool 
         detail = (exc.stderr or exc.stdout or "").strip()
         raise ReleaseError(f"command failed: {' '.join(command)}\n{detail}") from exc
     return (completed.stdout or "").strip()
+
+
+def command_reverts(command: list[str]) -> bool:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError as exc:
+        raise ReleaseError(f"required executable not found: {command[0]}") from exc
+    return completed.returncode != 0
 
 
 def checked_write(path: Path, value: dict[str, Any]) -> None:
@@ -177,7 +217,7 @@ def validate_config(context: Context) -> None:
         raise ReleaseError("timelockMinDelay must be positive")
     strict_int(config.get("adminTransferDelay"), "config.adminTransferDelay")
     strict_int(config.get("minDeployerBalanceWei"), "config.minDeployerBalanceWei")
-    for key in (
+    safe_keys = (
         "timelockProposerSafe",
         "timelockExecutorSafe",
         "emergencyPauserSafe",
@@ -186,9 +226,19 @@ def validate_config(context: Context) -> None:
         "liquiditySafe",
         "rewardsSafe",
         "strategicReserveSafe",
-        "biniV1Token",
-    ):
+    )
+    for key in (*safe_keys, "biniV1Token"):
         require_address(config.get(key), f"config.{key}")
+    custody_keys = (
+        "genesisDistributionSafe",
+        "treasurySafe",
+        "liquiditySafe",
+        "rewardsSafe",
+        "strategicReserveSafe",
+    )
+    custody_addresses = [config[key].lower() for key in custody_keys]
+    if len(set(custody_addresses)) != len(custody_addresses):
+        raise ReleaseError("Genesis, Treasury, Liquidity, Rewards and Strategic custody addresses must be distinct")
     thresholds = config.get("safeThresholds")
     if not isinstance(thresholds, dict) or not thresholds:
         raise ReleaseError("config.safeThresholds must be a non-empty object")
@@ -196,6 +246,53 @@ def validate_config(context: Context) -> None:
         require_address(safe, "safeThresholds key")
         if strict_int(threshold, f"safeThresholds[{safe}]") <= 0:
             raise ReleaseError("Safe threshold must be positive")
+    threshold_addresses = {address.lower() for address in thresholds}
+    missing_thresholds = [key for key in safe_keys if config[key].lower() not in threshold_addresses]
+    if missing_thresholds:
+        raise ReleaseError(f"safeThresholds is missing configured Safes: {', '.join(missing_thresholds)}")
+    validate_dex_policy(config)
+
+
+def validate_dex_policy(config: dict[str, Any]) -> None:
+    policy = config.get("dexPolicy")
+    if not isinstance(policy, dict):
+        raise ReleaseError("config.dexPolicy must be an object")
+    factories = policy.get("factories")
+    infrastructure = policy.get("infrastructure")
+    if not isinstance(factories, list) or not factories:
+        raise ReleaseError("dexPolicy.factories must be a non-empty array")
+    if not isinstance(infrastructure, list) or not infrastructure:
+        raise ReleaseError("dexPolicy.infrastructure must be a non-empty array")
+    kinds: set[str] = set()
+    addresses: set[str] = set()
+    for index, entry in enumerate(factories):
+        if not isinstance(entry, dict):
+            raise ReleaseError(f"DEX factory {index} must be an object")
+        kind = entry.get("kind")
+        if kind not in {"UNISWAP_V2", "UNISWAP_V3"}:
+            raise ReleaseError(f"invalid DEX factory kind: {kind}")
+        kinds.add(kind)
+        address = require_address(entry.get("address"), f"DEX factory {index} address").lower()
+        if address in addresses:
+            raise ReleaseError(f"duplicate DEX policy address: {address}")
+        addresses.add(address)
+        require_hash(entry.get("runtimeCodeHash"), f"DEX factory {index} runtimeCodeHash")
+    if kinds != {"UNISWAP_V2", "UNISWAP_V3"}:
+        raise ReleaseError("DEX policy must include both V2 and V3 factories")
+    for index, entry in enumerate(infrastructure):
+        if not isinstance(entry, dict):
+            raise ReleaseError(f"DEX infrastructure {index} must be an object")
+        address = require_address(entry.get("address"), f"DEX infrastructure {index} address").lower()
+        if address in addresses:
+            raise ReleaseError(f"duplicate DEX policy address: {address}")
+        addresses.add(address)
+        require_hash(entry.get("runtimeCodeHash"), f"DEX infrastructure {index} runtimeCodeHash")
+
+
+def require_hash(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not HASH_RE.fullmatch(value):
+        raise ReleaseError(f"{field} is not a bytes32 hash")
+    return value
 
 
 def validate_ledger(path: Path, vesting_path: Path | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -229,8 +326,10 @@ def validate_ledger(path: Path, vesting_path: Path | None = None) -> tuple[dict[
             raise ReleaseError(f"allocation {allocation_id} amount must be positive")
         total += amount
         category = str(allocation.get("category", "")).upper()
-        vesting_required = bool(allocation.get("vestingRequired", False))
-        immediately_liquid = bool(allocation.get("immediatelyLiquid", False))
+        vesting_required = allocation.get("vestingRequired", False)
+        immediately_liquid = allocation.get("immediatelyLiquid", False)
+        if not isinstance(vesting_required, bool) or not isinstance(immediately_liquid, bool):
+            raise ReleaseError(f"allocation {allocation_id} vesting flags must be booleans")
         if category in {"TEAM VESTING", "PARTNER/INVESTOR VESTING"} and not immediately_liquid:
             if not vesting_required:
                 raise ReleaseError(f"allocation {allocation_id} must use vesting")
@@ -244,6 +343,19 @@ def validate_ledger(path: Path, vesting_path: Path | None = None) -> tuple[dict[
                 raise ReleaseError(f"vesting amount mismatch for allocation {allocation_id}")
     if total != TOTAL_SUPPLY_RAW:
         raise ReleaseError(f"ledger sum {total} does not equal fixed supply {TOTAL_SUPPLY_RAW}")
+    required_categories = {
+        "MIGRATION RESERVE",
+        "TREASURY",
+        "TEAM VESTING",
+        "PARTNER/INVESTOR VESTING",
+        "REWARDS/ECOSYSTEM",
+        "LIQUIDITY AND MARKET MAKING",
+        "STRATEGIC/CEX RESERVE",
+    }
+    present_categories = {str(item.get("category", "")).upper() for item in allocations}
+    missing_categories = sorted(required_categories - present_categories)
+    if missing_categories:
+        raise ReleaseError(f"ledger is missing required categories: {', '.join(missing_categories)}")
     return ledger, allocations
 
 
@@ -344,8 +456,95 @@ def safe_batch(chain_id: int, safe: str, name: str, transactions: Iterable[dict[
         "version": "1.0",
         "chainId": str(chain_id),
         "createdAt": now_utc(),
-        "meta": {"name": name, "description": "Generated by ./bin/bini-v2", "txBuilderVersion": "1.18.0"},
+        "meta": {
+            "name": name,
+            "description": "Generated by ./bin/bini-v2",
+            "txBuilderVersion": "1.18.0",
+            "createdFromSafeAddress": safe,
+        },
         "transactions": list(transactions),
+    }
+
+
+def timelock_package(
+    context: Context,
+    deployment: dict[str, Any],
+    name: str,
+    calls: list[dict[str, Any]],
+    salt_source: str,
+) -> dict[str, Any]:
+    if not calls:
+        raise ReleaseError("cannot create an empty Timelock operation")
+    targets = "[" + ",".join(require_address(item["to"], "Timelock target") for item in calls) + "]"
+    values = "[" + ",".join(str(strict_int(item.get("value", 0), "Timelock value")) for item in calls) + "]"
+    datas = "[" + ",".join(item["data"] for item in calls) + "]"
+    salt = run(["cast", "keccak", f"BINI_V2:{context.chain_id}:{name}:{salt_source}"])
+    delay = strict_int(context.config["timelockMinDelay"], "timelockMinDelay")
+    schedule_data = run(
+        [
+            "cast",
+            "calldata",
+            "scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)",
+            targets,
+            values,
+            datas,
+            ZERO_HASH,
+            salt,
+            str(delay),
+        ]
+    )
+    execute_data = run(
+        [
+            "cast",
+            "calldata",
+            "executeBatch(address[],uint256[],bytes[],bytes32,bytes32)",
+            targets,
+            values,
+            datas,
+            ZERO_HASH,
+            salt,
+        ]
+    )
+    encoded_operation = run(
+        [
+            "cast",
+            "abi-encode",
+            "f(address[],uint256[],bytes[],bytes32,bytes32)",
+            targets,
+            values,
+            datas,
+            ZERO_HASH,
+            salt,
+        ]
+    )
+    operation_id = run(["cast", "keccak", encoded_operation])
+    timelock = deployment["timelock"]
+    schedule_tx = {
+        "to": timelock,
+        "value": "0",
+        "data": schedule_data,
+        "contractMethod": None,
+        "contractInputsValues": None,
+    }
+    execute_tx = {
+        "to": timelock,
+        "value": "0",
+        "data": execute_data,
+        "contractMethod": None,
+        "contractInputsValues": None,
+    }
+    return {
+        "operationId": operation_id,
+        "salt": salt,
+        "predecessor": ZERO_HASH,
+        "minimumDelaySeconds": delay,
+        "calls": calls,
+        "scheduleProposal": safe_batch(
+            context.chain_id, context.config["timelockProposerSafe"], f"Schedule {name}", [schedule_tx]
+        ),
+        "executeProposal": safe_batch(
+            context.chain_id, context.config["timelockExecutorSafe"], f"Execute {name}", [execute_tx]
+        ),
     }
 
 
@@ -439,11 +638,17 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
         raise ReleaseError("broadcast has no confirmed receipt block")
     abi = run(["forge", "inspect", "BiniTokenV2", "abi", "--json"])
     storage = run(["forge", "inspect", "BiniTokenV2", "storageLayout", "--json"])
+    block_number = max(block_values)
+    block = load_json_from_output(
+        run(["cast", "block", str(block_number), "--json", "--rpc-url", context.rpc_url]),
+        "confirmed deployment block",
+    )
+    block_timestamp = receipt_int(block.get("timestamp"), "deployment block timestamp")
     manifest = {
         "chainId": context.chain_id,
         "network": context.network,
-        "deploymentTimestamp": now_utc(),
-        "deploymentBlock": max(block_values),
+        "deploymentTimestamp": dt.datetime.fromtimestamp(block_timestamp, dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "deploymentBlock": block_number,
         "deployer": require_address(os.environ.get("DEPLOYER_ADDRESS"), "DEPLOYER_ADDRESS"),
         **addresses,
         "safes": {key: value for key, value in context.config.items() if key.endswith("Safe")},
@@ -452,7 +657,8 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
         "foundryVersion": evidence["foundryVersion"],
         "openzeppelinDependencyShas": dependency_shas(),
         "creationBytecodeHash": inspect_hash("BiniTokenV2", "bytecode"),
-        "runtimeBytecodeHash": inspect_hash("BiniTokenV2", "deployedBytecode"),
+        "runtimeBytecodeHash": runtime_code_hash(context, addresses["implementation"], "token implementation"),
+        "buildRuntimeBytecodeHash": inspect_hash("BiniTokenV2", "deployedBytecode"),
         "abiHash": run(["cast", "keccak", abi]),
         "storageLayoutHash": run(["cast", "keccak", storage]),
         "gitCommit": evidence["gitCommit"],
@@ -461,16 +667,11 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
     }
     verify_recorded_deployment(context, manifest)
     genesis_balance = strict_int(
-        run(
-            [
-                "cast",
-                "call",
-                manifest["proxy"],
-                "balanceOf(address)(uint256)",
-                context.config["genesisDistributionSafe"],
-                "--rpc-url",
-                context.rpc_url,
-            ]
+        call_args(
+            context,
+            manifest["proxy"],
+            "balanceOf(address)(uint256)",
+            context.config["genesisDistributionSafe"],
         ),
         "Genesis balance",
     )
@@ -497,6 +698,59 @@ def verify_recorded_deployment(context: Context, deployment: dict[str, Any]) -> 
         raise ReleaseError("migration vault is linked to the wrong V2 token")
     if call(context, deployment["migrationVault"], "v1Token()(address)").lower() != context.config["biniV1Token"].lower():
         raise ReleaseError("migration vault is linked to the wrong V1 token")
+    implementation_word = run(
+        [
+            "cast",
+            "storage",
+            deployment["proxy"],
+            ERC1967_IMPLEMENTATION_SLOT,
+            "--rpc-url",
+            context.rpc_url,
+        ]
+    )
+    implementation_from_slot = "0x" + implementation_word[-40:]
+    if implementation_from_slot.lower() != deployment["implementation"].lower():
+        raise ReleaseError("ERC-1967 implementation slot does not match deployment manifest")
+    implementation_runtime_hash = runtime_code_hash(context, deployment["implementation"], "token implementation")
+    expected_runtime_hash = deployment.get("runtimeBytecodeHash")
+    if isinstance(expected_runtime_hash, str) and implementation_runtime_hash.lower() != expected_runtime_hash.lower():
+        raise ReleaseError("token implementation runtime hash mismatch")
+    role_bindings = (
+        ("UPGRADER_ROLE()(bytes32)", deployment["timelock"]),
+        ("MARKET_MANAGER_ROLE()(bytes32)", deployment["timelock"]),
+        ("UNPAUSER_ROLE()(bytes32)", deployment["timelock"]),
+        ("PAUSER_ROLE()(bytes32)", context.config["emergencyPauserSafe"]),
+    )
+    for role_signature, account in role_bindings:
+        role = call(context, deployment["proxy"], role_signature)
+        if call_args(context, deployment["proxy"], "hasRole(bytes32,address)(bool)", role, account).lower() != "true":
+            raise ReleaseError(f"missing token role {role_signature} for {account}")
+    vault_admin_role = call(context, deployment["migrationVault"], "DEFAULT_ADMIN_ROLE()(bytes32)")
+    if (
+        call_args(
+            context,
+            deployment["migrationVault"],
+            "hasRole(bytes32,address)(bool)",
+            vault_admin_role,
+            deployment["timelock"],
+        ).lower()
+        != "true"
+    ):
+        raise ReleaseError("Timelock does not hold migration vault admin role")
+    initializer_data = run(
+        [
+            "cast",
+            "calldata",
+            "initialize(address,address,address,uint48)",
+            deployment["timelock"],
+            context.config["emergencyPauserSafe"],
+            context.config["genesisDistributionSafe"],
+            str(context.config["adminTransferDelay"]),
+        ]
+    )
+    for target in (deployment["implementation"], deployment["proxy"]):
+        if not command_reverts(["cast", "call", target, initializer_data, "--rpc-url", context.rpc_url]):
+            raise ReleaseError(f"initializer replay unexpectedly succeeded for {target}")
 
 
 def preflight(context: Context, *, require_rpc: bool) -> dict[str, Any]:
@@ -544,10 +798,7 @@ def check_safe_contracts(context: Context) -> None:
         code = run(["cast", "code", safe, "--rpc-url", context.rpc_url])
         if code in ("", "0x"):
             raise ReleaseError(f"Safe has no contract code: {safe}")
-        actual = strict_int(
-            run(["cast", "call", safe, "getThreshold()(uint256)", "--rpc-url", context.rpc_url]),
-            f"Safe threshold {safe}",
-        )
+        actual = strict_int(call(context, safe, "getThreshold()(uint256)"), f"Safe threshold {safe}")
         if actual != strict_int(expected_threshold, f"Safe threshold {safe}"):
             raise ReleaseError(f"Safe threshold mismatch for {safe}: expected {expected_threshold}, got {actual}")
 
@@ -556,6 +807,69 @@ def check_contract_code(context: Context, address: str, field: str) -> None:
     require_address(address, field)
     if run(["cast", "code", address, "--rpc-url", context.rpc_url]) in ("", "0x"):
         raise ReleaseError(f"{field} has no contract code: {address}")
+
+
+def runtime_code_hash(context: Context, address: str, field: str) -> str:
+    code = run(["cast", "code", require_address(address, field), "--rpc-url", context.rpc_url])
+    if code in ("", "0x"):
+        raise ReleaseError(f"{field} has no contract code: {address}")
+    return run(["cast", "keccak", code])
+
+
+def dex_configuration_calls(context: Context, token: str, *, only_pending: bool) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    kind_values = {"UNISWAP_V2": 1, "UNISWAP_V3": 2}
+    for entry in context.config["dexPolicy"]["factories"]:
+        expected_hash = entry["runtimeCodeHash"].lower()
+        if only_pending:
+            actual_hash = runtime_code_hash(context, entry["address"], f"DEX factory {entry['name']}")
+            if actual_hash.lower() != expected_hash:
+                raise ReleaseError(f"runtime code hash mismatch for DEX factory {entry['name']}")
+            current = strict_int(
+                call_args(context, token, "dexFactoryKind(address)(uint8)", entry["address"]),
+                f"factory kind {entry['name']}",
+            )
+            if current == kind_values[entry["kind"]]:
+                continue
+        data = run(
+            [
+                "cast",
+                "calldata",
+                "setDexFactory(address,uint8)",
+                entry["address"],
+                str(kind_values[entry["kind"]]),
+            ]
+        )
+        calls.append({"name": entry["name"], "to": token, "value": "0", "data": data})
+    pending_infrastructure = []
+    for entry in context.config["dexPolicy"]["infrastructure"]:
+        expected_hash = entry["runtimeCodeHash"].lower()
+        if only_pending:
+            actual_hash = runtime_code_hash(context, entry["address"], f"DEX infrastructure {entry['name']}")
+            if actual_hash.lower() != expected_hash:
+                raise ReleaseError(f"runtime code hash mismatch for DEX infrastructure {entry['name']}")
+            if call_args(context, token, "isMarketInfrastructure(address)(bool)", entry["address"]).lower() == "true":
+                continue
+        pending_infrastructure.append(entry["address"])
+    if pending_infrastructure:
+        addresses = "[" + ",".join(pending_infrastructure) + "]"
+        data = run(["cast", "calldata", "setMarketInfrastructure(address[],bool)", addresses, "true"])
+        calls.append({"name": "DEX infrastructure", "to": token, "value": "0", "data": data})
+    return calls
+
+
+def verify_dex_policy_onchain(context: Context, token: str) -> dict[str, Any]:
+    if call(context, token, "marketOpen()(bool)").lower() != "false":
+        raise ReleaseError("DEX policy verification requires PRE_MARKET")
+    pending = dex_configuration_calls(context, token, only_pending=True)
+    if pending:
+        names = ", ".join(item["name"] for item in pending)
+        raise ReleaseError(f"PRE_MARKET DEX policy is incomplete: {names}")
+    return {
+        "factories": [entry["address"] for entry in context.config["dexPolicy"]["factories"]],
+        "infrastructure": [entry["address"] for entry in context.config["dexPolicy"]["infrastructure"]],
+        "complete": True,
+    }
 
 
 def command_preflight(args: argparse.Namespace) -> None:
@@ -624,6 +938,103 @@ def command_deploy(args: argparse.Namespace) -> None:
         checked_write(deployment_file(context.network), manifest_from_broadcast(context, evidence))
 
 
+def command_configure_market(args: argparse.Namespace) -> None:
+    context = load_context(args)
+    validate_config(context)
+    deployment = load_deployment(context.network)
+    token = deployment["proxy"]
+    if context.mode == "BROADCAST":
+        raise ReleaseError("DEX policy is Timelock-controlled; use SAFE_PROPOSAL and execute after the delay")
+    if context.mode == "PLAN":
+        calls = dex_configuration_calls(context, token, only_pending=False)
+    else:
+        preflight(context, require_rpc=True)
+        verify_recorded_deployment(context, deployment)
+        calls = dex_configuration_calls(context, token, only_pending=True)
+        if not calls:
+            print(json.dumps({"status": "DEX_POLICY_COMPLETE", "token": token}, indent=2))
+            return
+    policy_hash = "sha256:" + hashlib.sha256(
+        json.dumps(context.config["dexPolicy"], sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    package = {
+        "network": context.network,
+        "chainId": context.chain_id,
+        "policyHash": policy_hash,
+        "token": token,
+        "timelockPackage": timelock_package(
+            context, deployment, "BINI V2 PRE_MARKET DEX policy", calls, policy_hash
+        ),
+        "postcondition": "All configured factories and infrastructure must be active while marketOpen() is false.",
+    }
+    if context.mode == "PLAN":
+        print(json.dumps(package, indent=2, sort_keys=True))
+        return
+    output = artifact_path("deployments", context.network, f"pre-market-policy-{policy_hash.split(':')[1][:12]}.json")
+    if output.exists():
+        existing = load_json(output)
+        if existing.get("policyHash") != policy_hash or existing.get("token", "").lower() != token.lower():
+            raise ReleaseError("existing PRE_MARKET policy artifact is inconsistent")
+        print(json.dumps({"status": "ALREADY_PLANNED", "artifact": str(output)}, indent=2))
+        return
+    checked_write(output, package)
+    print(output)
+
+
+def command_open_market(args: argparse.Namespace) -> None:
+    context = load_context(args)
+    validate_config(context)
+    deployment = load_deployment(context.network)
+    token = deployment["proxy"]
+    if context.mode == "BROADCAST":
+        raise ReleaseError("market opening is Timelock-controlled; use SAFE_PROPOSAL and execute after the delay")
+    if context.mode != "PLAN":
+        preflight(context, require_rpc=True)
+        verify_recorded_deployment(context, deployment)
+        verify_dex_policy_onchain(context, token)
+    call_data = run(["cast", "calldata", "openMarket()"])
+    deployment_identity = ":".join(
+        (
+            str(context.chain_id),
+            token.lower(),
+            str(deployment.get("deploymentBlock", "unknown")),
+            str(deployment.get("gitCommit", "unknown")),
+        )
+    )
+    package = {
+        "network": context.network,
+        "chainId": context.chain_id,
+        "token": token,
+        "lifecycleTransition": "PRE_MARKET_TO_OPEN_MARKET_IRREVERSIBLE",
+        "timelockPackage": timelock_package(
+            context,
+            deployment,
+            "BINI V2 OPEN_MARKET",
+            [{"to": token, "value": "0", "function": "openMarket()", "data": call_data}],
+            deployment_identity,
+        ),
+        "postconditions": [
+            "marketOpen() == true",
+            "marketState() == OPEN_MARKET",
+            "transfers into former DEX destinations succeed",
+            "a second openMarket() call reverts",
+        ],
+    }
+    if context.mode == "PLAN":
+        print(json.dumps(package, indent=2, sort_keys=True))
+        return
+    package_hash = hashlib.sha256(deployment_identity.encode()).hexdigest()[:12]
+    output = artifact_path("deployments", context.network, f"open-market-{package_hash}.json")
+    if output.exists():
+        existing = load_json(output)
+        if existing.get("token", "").lower() != token.lower():
+            raise ReleaseError("existing OPEN_MARKET artifact is inconsistent")
+        print(json.dumps({"status": "ALREADY_PLANNED", "artifact": str(output)}, indent=2))
+        return
+    checked_write(output, package)
+    print(output)
+
+
 def command_distribute(args: argparse.Namespace) -> None:
     context = load_context(args)
     ledger_path = Path(args.ledger)
@@ -677,6 +1088,7 @@ def command_distribute(args: argparse.Namespace) -> None:
         raise ReleaseError("Genesis funds are Safe-controlled; use SAFE_PROPOSAL and execute at the Safe threshold")
     if context.mode in {"SIMULATE", "SAFE_PROPOSAL"}:
         preflight(context, require_rpc=True)
+        verify_dex_policy_onchain(context, token)
         for grant_id, grant in load_vesting(vesting_path).items():
             check_contract_code(context, grant["vestingContract"], f"vesting grant {grant_id}")
         plan["simulation"] = "calldata validated; execute the generated Safe batch in a Sepolia fork/Safe simulation"
@@ -726,7 +1138,8 @@ def command_migration_plan(args: argparse.Namespace) -> None:
     for batch_id, batch in batches.items():
         if len(batch) > 20:
             raise ReleaseError(f"batch {batch_id} has {len(batch)} holders; maximum is 20 before gas simulation")
-    vault = load_deployment(context.network)["migrationVault"] if deployment_file(context.network).exists() else ZERO_ADDRESS
+    deployment = load_deployment(context.network) if deployment_file(context.network).exists() else None
+    vault = deployment["migrationVault"] if deployment else ZERO_ADDRESS
     governance_calls = []
     for batch_id, batch in batches.items():
         holders = "[" + ",".join(item["v1Address"] for item in batch) + "]"
@@ -770,10 +1183,20 @@ def command_migration_plan(args: argparse.Namespace) -> None:
         "governanceCalls": governance_calls,
         "governanceRequired": "Timelock must set all entitlements and seal only after exact V2 reserve funding.",
     }
+    if deployment:
+        plan["timelockPackage"] = timelock_package(
+            context,
+            deployment,
+            "BINI V1 holder entitlements",
+            governance_calls,
+            source_hash,
+        )
     output = artifact_path("migrations", context.network, f"migration-plan-{source_hash.split(':')[1][:12]}.json")
     if context.mode == "PLAN":
         print(json.dumps(plan, indent=2, sort_keys=True))
     else:
+        if deployment is None:
+            raise ReleaseError("confirmed deployment manifest is required")
         preflight(context, require_rpc=True)
         checked_write(output, plan)
         print(output)
@@ -890,11 +1313,13 @@ def command_migrate(args: argparse.Namespace) -> None:
 
 
 def call(context: Context, target: str, signature: str) -> str:
-    return run(["cast", "call", target, signature, "--rpc-url", context.rpc_url])
+    output = run(["cast", "call", "--json", target, signature, "--rpc-url", context.rpc_url])
+    return decode_cast_call(output, f"call {signature}")
 
 
 def call_args(context: Context, target: str, signature: str, *args: str) -> str:
-    return run(["cast", "call", target, signature, *args, "--rpc-url", context.rpc_url])
+    output = run(["cast", "call", "--json", target, signature, *args, "--rpc-url", context.rpc_url])
+    return decode_cast_call(output, f"call {signature}")
 
 
 def command_verify(args: argparse.Namespace) -> None:
@@ -928,7 +1353,14 @@ def command_verify(args: argparse.Namespace) -> None:
     locked = strict_int(checks["totalLockedV1"], "locked V1")
     if released != locked * V1_TO_V2_SCALE:
         raise ReleaseError("migration reconciliation mismatch")
-    evidence = {"preflight": preflight_evidence, "deployment": deployment, "checks": checks, "verifiedAt": now_utc()}
+    dex_policy = verify_dex_policy_onchain(context, token)
+    evidence = {
+        "preflight": preflight_evidence,
+        "deployment": deployment,
+        "checks": checks,
+        "dexPolicy": dex_policy,
+        "verifiedAt": now_utc(),
+    }
     output = artifact_path("verification", context.network, f"verification-{int(dt.datetime.now().timestamp())}.json")
     checked_write(output, evidence)
     print(output)
@@ -946,6 +1378,11 @@ def command_status(args: argparse.Namespace) -> None:
             "marketOpen": call(context, deployment["proxy"], "marketOpen()(bool)"),
             "migrationLiability": call(context, deployment["migrationVault"], "remainingV2Liability()(uint256)"),
         }
+        try:
+            verify_dex_policy_onchain(context, deployment["proxy"])
+            result["onChain"]["dexPolicy"] = "COMPLETE"
+        except ReleaseError as exc:
+            result["onChain"]["dexPolicy"] = f"INCOMPLETE: {exc}"
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
@@ -962,6 +1399,8 @@ def parser() -> argparse.ArgumentParser:
 
     common("preflight").set_defaults(handler=command_preflight)
     common("deploy").set_defaults(handler=command_deploy)
+    common("configure-market").set_defaults(handler=command_configure_market)
+    common("open-market").set_defaults(handler=command_open_market)
     distribute = common("distribute")
     distribute.add_argument("--ledger", required=True)
     distribute.add_argument("--vesting", default="data/vesting-grants.json")

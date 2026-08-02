@@ -32,28 +32,34 @@
 | `test/governance/TimelockGovernance.t.sol` | real delayed Timelock execution |
 | `test/upgrade/UpgradeStatePreservation.t.sol` | UUPS authorization and namespaced-state preservation |
 | `test/fork/DexMarketFork.t.sol` | real mainnet Uniswap V2, V3 and V4 destinations |
+| `test_cli/test_release_cli.py` | input validation, exact calldata, immutable artifacts and Timelock packages |
+| `tools/test-release-anvil.sh` | receipt-backed deploy, policy, distribution, migration and market lifecycle |
 
 The exact command results are recorded in the release commit and GitHub Actions.
 
 Current release run:
 
-- local suites: `49 passed, 0 failed`;
+- local Solidity suites: `69 passed, 0 failed`;
 - mainnet-fork suite: `4 passed, 0 failed`;
-- total: `53 passed, 0 failed`;
-- core coverage: `100%` lines, statements, branches and functions;
+- release CLI suite: `15 passed, 0 failed`;
+- local Anvil release rehearsal: passed;
+- token coverage: `100%` lines, branches and functions;
+- migration-vault coverage: `97.65%` lines, `87.50%` branches and `90%` functions;
 - Slither `0.11.4`: `0` findings under documented exclusions;
 - OpenZeppelin Upgrades Core `1.46.0`: validation passed.
 
-## Revalidation 2026-08-01
+## Revalidation 2026-08-02
 
 - local `main` and `origin/main` were synchronized before the run;
 - `make release-check` passed again on the final contract tree;
-- `49` local tests and `4` pinned mainnet-fork tests passed;
-- core coverage remained `100%` for lines, statements, branches and functions;
+- `69` local Solidity, `15` CLI and `4` pinned mainnet-fork tests passed;
+- the local Anvil release rehearsal completed the full lifecycle using actual
+  receipts and delayed Timelock execution;
+- coverage remained above every enforced token and migration-vault threshold;
 - Slither and OpenZeppelin upgrade validation passed again;
 - release ABI, selectors, bytecode hashes and storage schema remained consistent;
-- deployment preflight passed against local Anvil contract addresses and
-  rejected an EOA substituted for `ADMIN_TIMELOCK`.
+- deployment preflight and manifest recovery passed against local Anvil
+  contracts, including role, implementation-slot and initializer-replay checks.
 
 GitHub Actions run `30712720161` passed every release gate on commit `26da1ae`,
 including the pinned mainnet-fork suite. The preceding run exposed a pruned

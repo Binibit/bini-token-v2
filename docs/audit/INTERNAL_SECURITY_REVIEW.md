@@ -63,8 +63,10 @@ with `fail_on_revert = true`.
 
 ## Automated Results
 
-- `53` tests pass: `49` local and `4` pinned mainnet fork;
-- core coverage: `100%` lines, statements, branches and functions;
+- `69` local Solidity, `15` CLI and `4` pinned mainnet-fork tests pass;
+- receipt-backed local Anvil release rehearsal: pass;
+- token coverage: `100%` lines, branches and functions;
+- migration-vault coverage: `97.65%` lines, `87.50%` branches and `90%` functions;
 - Slither `0.11.4`: `0` findings after documented informational exclusions;
 - OpenZeppelin upgrade validation: pass;
 - release artifact, storage slot and selector policy consistency: pass;

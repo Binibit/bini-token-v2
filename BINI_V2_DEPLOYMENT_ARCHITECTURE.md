@@ -16,6 +16,11 @@ Deployment is atomic at the proxy initializer boundary. The deployer creates
 contracts but retains no production role. `openMarket()` is deliberately absent
 from every release script.
 
+Because only Timelock holds `MARKET_MANAGER_ROLE`, DEX policy initialization is
+a second governance phase. The CLI generates deterministic Proposer-Safe
+`scheduleBatch` and Executor-Safe `executeBatch` payloads. Distribution remains
+blocked until all configured entries and runtime code hashes verify on-chain.
+
 ## Lifecycle
 
 `PRE_MARKET` permits ordinary wallet, Safe, custody, vesting, rewards, OTC and

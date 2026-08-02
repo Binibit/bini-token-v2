@@ -67,10 +67,12 @@ migration, verification and status. Every command defaults to non-transacting
 ```sh
 ./bin/bini-v2 preflight --network sepolia
 ./bin/bini-v2 deploy --network sepolia --config config/sepolia.json
+./bin/bini-v2 configure-market --network sepolia
 ./bin/bini-v2 distribute --network sepolia --ledger data/bini-v2-supply-ledger.json
 ./bin/bini-v2 migration-plan --network sepolia --holders data/v1-v2-known-holders.csv
 ./bin/bini-v2 migrate --network sepolia --holders data/v1-v2-known-holders.csv --batch batch-01
 ./bin/bini-v2 verify --network sepolia
+./bin/bini-v2 open-market --network sepolia
 ./bin/bini-v2 status --network sepolia
 ```
 
@@ -82,6 +84,7 @@ Useful narrower commands:
 
 ```sh
 make test-local
+make test-anvil
 make test-fork
 make coverage
 make audit

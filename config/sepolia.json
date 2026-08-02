@@ -6,7 +6,7 @@
   "expectedGitCommit": "SET_VIA_EXPECTED_GIT_COMMIT_ENV",
   "illustrativeInputs": true,
   "expectedTokenCreationBytecodeHash": "0x6f048525545cc80f49c8c203f65d605beae18a4b0cc2d24bafaa9a57efebe872",
-  "expectedVaultCreationBytecodeHash": "0xf2e6c8ef31d20c22b6e3bc3751b9895624dc44698d1ed8550aba11dfd27ec870",
+  "expectedVaultCreationBytecodeHash": "0x92af2dc53fc34d116fe0fa8062b920dcb5cd4b0fd2dc89f610f5e582c7d1e4e0",
   "minDeployerBalanceWei": "100000000000000000",
   "timelockMinDelay": 172800,
   "adminTransferDelay": 172800,
@@ -28,5 +28,14 @@
     "0x0000000000000000000000000000000000001006": 2,
     "0x0000000000000000000000000000000000001007": 2,
     "0x0000000000000000000000000000000000001008": 2
+  },
+  "dexPolicy": {
+    "factories": [
+      {"name": "Sepolia V2 factory placeholder", "kind": "UNISWAP_V2", "address": "0x0000000000000000000000000000000000006001", "runtimeCodeHash": "0x1111111111111111111111111111111111111111111111111111111111111111"},
+      {"name": "Sepolia V3 factory placeholder", "kind": "UNISWAP_V3", "address": "0x0000000000000000000000000000000000006002", "runtimeCodeHash": "0x2222222222222222222222222222222222222222222222222222222222222222"}
+    ],
+    "infrastructure": [
+      {"name": "Sepolia V4 PoolManager placeholder", "address": "0x0000000000000000000000000000000000006003", "runtimeCodeHash": "0x3333333333333333333333333333333333333333333333333333333333333333"}
+    ]
   }
 }

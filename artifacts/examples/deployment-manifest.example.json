@@ -15,6 +15,7 @@
   "openzeppelinDependencyShas": {},
   "creationBytecodeHash": "SET_FROM_BUILD",
   "runtimeBytecodeHash": "SET_FROM_CHAIN",
+  "buildRuntimeBytecodeHash": "SET_FROM_FORGE_BUILD",
   "abiHash": "SET_FROM_BUILD",
   "storageLayoutHash": "SET_FROM_BUILD",
   "gitCommit": "SET_FROM_RELEASE_COMMIT",

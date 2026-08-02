@@ -1,6 +1,10 @@
 out/
 cache/
 broadcast/
+artifacts/deployments/
+artifacts/distributions/
+artifacts/migrations/
+artifacts/verification/
 .env
 node_modules/
 lcov.info

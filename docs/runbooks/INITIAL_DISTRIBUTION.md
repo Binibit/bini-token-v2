@@ -11,6 +11,10 @@ The migration destination must be the deployed `BiniMigrationVault`; Treasury,
 Liquidity, Rewards and Strategic reserves must use their dedicated Safes or
 approved contracts. Do not combine these custody boundaries.
 
+The CLI refuses an executable Safe package unless the complete PRE_MARKET DEX
+policy is already active on-chain with matching runtime code hashes. This closes
+the interval between contract deployment and market-policy initialization.
+
 ## Plan and Safe package
 
 ```sh

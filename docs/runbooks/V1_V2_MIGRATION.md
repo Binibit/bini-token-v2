@@ -23,6 +23,11 @@ hash and batches of at most 20 holders. Timelock must execute
 `setEntitlements(...)` for the reviewed action IDs and then
 `sealEntitlements()` after exact reserve funding.
 
+When a deployment manifest exists, `migration-plan` wraps these calls in
+deterministic Timelock `scheduleBatch` and `executeBatch` Safe packages. Fund
+the reserve before executing that batch; sealing an empty entitlement set is
+rejected on-chain.
+
 ## Per-batch packages
 
 ```sh

@@ -71,6 +71,12 @@ contract BiniMigrationVaultTest is Test {
         vault.sealEntitlements();
     }
 
+    function test_CannotIrreversiblySealEmptyEntitlements() public {
+        vm.expectRevert(BiniMigrationVault.NoEntitlementsConfigured.selector);
+        vm.prank(timelock);
+        vault.sealEntitlements();
+    }
+
     function test_InsufficientAllowancePreventsV2Release() public {
         _configureAndFund(vault, v1, V1_AMOUNT);
 

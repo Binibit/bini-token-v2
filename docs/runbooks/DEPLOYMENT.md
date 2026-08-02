@@ -7,6 +7,10 @@ implementation, atomically initialized ERC-1967 proxy and immutable
 `BiniMigrationVault`. It does not deploy an unaudited vesting implementation,
 distribute supply, configure DEX infrastructure or call `openMarket()`.
 
+Stage 1 is complete only after the ratified V2/V3 factories and V4/DEX
+infrastructure have also been scheduled and executed through Timelock. The CLI
+blocks Genesis distribution until that on-chain policy verifies.
+
 The complete fixed supply is minted once to the Genesis Distribution Safe. The
 deployer receives no token or vault role. Mainnet requires a separate written
 authorization after a successful Sepolia rehearsal.
@@ -59,6 +63,21 @@ to overwrite an existing manifest, verifies code and `PRE_MARKET`, then writes
 `artifacts/deployments/sepolia/deployment.json`. Re-running checks the recorded
 contracts on-chain and reports `ALREADY_RECORDED`.
 
+## Configure PRE_MARKET
+
+After the deployment manifest exists, generate the exact Timelock Safe packages:
+
+```sh
+./bin/bini-v2 configure-market --network sepolia
+EXECUTION_MODE=SAFE_PROPOSAL ./bin/bini-v2 configure-market --network sepolia
+```
+
+The artifact contains a deterministic operation ID and separate Safe
+Transaction Builder payloads for `scheduleBatch` and `executeBatch`. Execute the
+schedule through the Proposer Safe, wait the configured delay, then execute
+through the Executor Safe. Runtime code hashes are checked before package
+generation. Do not distribute BINI before this operation verifies.
+
 ## Immediate verification
 
 ```sh
@@ -69,3 +88,7 @@ contracts on-chain and reports `ALREADY_RECORDED`.
 Archive the manifest, broadcast receipts, verification artifact, explorer
 links, Safe owner confirmations and release commit. Stop if any address, hash,
 role, supply, vault link or market state differs.
+
+Verification includes the ERC-1967 implementation slot, implementation runtime
+hash, Timelock/Pauser/Vault roles, initializer replay rejection and every
+ratified DEX registry entry.
