@@ -13,12 +13,19 @@ import {
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {
     ActorContract,
+    Create2V2Factory,
+    EIP7702DelegateLike,
+    ERC4337AccountLike,
+    GasGriefV2Factory,
     MockV2Factory,
     MockV2Pool,
     MockV3Factory,
+    ProxyWalletImplementation,
     ReturnBombV2Factory,
     ReturnBombV2Pool,
+    RevertingV2Factory,
     RevertingProbeWallet,
+    SafeLikeWallet,
     ShortReturnV2Factory
 } from "./mocks/MarketMocks.sol";
 
@@ -127,6 +134,34 @@ contract BiniTokenV2Test is Test {
         vm.prank(bob);
         token.transferFrom(alice, genesis, 55 ether);
         assertEq(token.allowance(alice, bob), 0);
+    }
+
+    function test_PreMarketOrdinarySafeProxyAnd4337AccountsAreFree() public {
+        SafeLikeWallet safe = new SafeLikeWallet();
+        ProxyWalletImplementation walletImplementation = new ProxyWalletImplementation();
+        ERC1967Proxy proxyWallet =
+            new ERC1967Proxy(address(walletImplementation), abi.encodeCall(ProxyWalletImplementation.initialize, ()));
+        ERC4337AccountLike account4337 = new ERC4337AccountLike();
+
+        vm.startPrank(alice);
+        token.transfer(address(safe), 1 ether);
+        token.transfer(address(proxyWallet), 2 ether);
+        token.transfer(address(account4337), 3 ether);
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(address(safe)), 1 ether);
+        assertEq(token.balanceOf(address(proxyWallet)), 2 ether);
+        assertEq(token.balanceOf(address(account4337)), 3 ether);
+    }
+
+    function test_PreMarketEip7702StyleProgrammableAccountAssumptionIsFree() public {
+        address delegatedAccount = address(0x7702);
+        EIP7702DelegateLike delegate = new EIP7702DelegateLike();
+        vm.etch(delegatedAccount, address(delegate).code);
+
+        vm.prank(alice);
+        token.transfer(delegatedAccount, 1 ether);
+        assertEq(token.balanceOf(delegatedAccount), 1 ether);
     }
 
     function test_PermitUsesStandardEip2612Flow() public {
@@ -333,6 +368,64 @@ contract BiniTokenV2Test is Test {
         assertEq(token.balanceOf(address(pair)), 1 ether);
     }
 
+    function test_RevertingFactoryCannotDenialOfServiceOrdinaryTransfer() public {
+        RevertingV2Factory factory = new RevertingV2Factory();
+        ReturnBombV2Pool pair = new ReturnBombV2Pool(address(factory), address(token), otherToken);
+        vm.prank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+
+        assertFalse(token.isRecognizedDexPool(address(pair)));
+        vm.prank(alice);
+        token.transfer(address(pair), 1 ether);
+        assertEq(token.balanceOf(address(pair)), 1 ether);
+    }
+
+    function test_GasGriefFactoryIsBoundedAndCannotDenialOfServiceOrdinaryTransfer() public {
+        GasGriefV2Factory factory = new GasGriefV2Factory();
+        ReturnBombV2Pool pair = new ReturnBombV2Pool(address(factory), address(token), otherToken);
+        vm.prank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+
+        uint256 gasBefore = gasleft();
+        vm.prank(alice);
+        token.transfer(address(pair), 1 ether);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        assertLt(gasUsed, 150_000);
+        assertEq(token.balanceOf(address(pair)), 1 ether);
+    }
+
+    function test_PreFundedFutureCreate2PoolIsDisclosedBoundary() public {
+        Create2V2Factory factory = new Create2V2Factory();
+        bytes32 salt = keccak256("BINI_FUTURE_POOL");
+        address futurePair = factory.predictedPair(address(token), otherToken, salt);
+        vm.prank(timelock);
+        token.setDexFactory(address(factory), BiniTokenV2.FactoryKind.UNISWAP_V2);
+
+        assertEq(futurePair.code.length, 0);
+        vm.prank(alice);
+        token.transfer(futurePair, 1 ether);
+
+        address deployedPair = factory.createPair(address(token), otherToken, salt);
+        assertEq(deployedPair, futurePair);
+        assertTrue(token.isRecognizedDexPool(deployedPair));
+        assertEq(token.balanceOf(deployedPair), 1 ether);
+
+        vm.expectRevert(abi.encodeWithSelector(BiniTokenV2.DexMarketClosed.selector, deployedPair));
+        vm.prank(alice);
+        token.transfer(deployedPair, 1 ether);
+    }
+
+    function test_UnknownCustomAmmBypassIsExplicitlyOutsideSupportedBoundary() public {
+        MockV2Factory unknownFactory = new MockV2Factory();
+        address customPool = unknownFactory.createPair(address(token), otherToken);
+
+        vm.prank(alice);
+        token.transfer(customPool, 1 ether);
+        assertEq(token.balanceOf(customPool), 1 ether);
+        assertFalse(token.isBlockedDexDestination(customPool));
+    }
+
     function test_RevertingContractProbeRemainsFreelyTransferable() public {
         RevertingProbeWallet wallet = new RevertingProbeWallet();
         vm.prank(alice);
@@ -377,6 +470,35 @@ contract BiniTokenV2Test is Test {
         vm.expectRevert(BiniTokenV2.MarketAlreadyOpen.selector);
         vm.prank(timelock);
         token.setDexFactory(poolManager, BiniTokenV2.FactoryKind.UNISWAP_V2);
+    }
+
+    function test_OpenMarketPreservesBalancesAllowancesPermitNoncesSupplyAndPause() public {
+        uint256 ownerKey = 0xB1A1;
+        address owner = vm.addr(ownerKey);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 typehash =
+            keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(typehash, owner, bob, 7 ether, 0, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, digest);
+        token.permit(owner, bob, 7 ether, deadline, v, r, s);
+
+        vm.prank(alice);
+        token.approve(bob, 11 ether);
+        vm.prank(pauser);
+        token.pause();
+        uint256 aliceBalance = token.balanceOf(alice);
+        uint256 supply = token.totalSupply();
+
+        vm.prank(timelock);
+        token.openMarket();
+
+        assertEq(token.balanceOf(alice), aliceBalance);
+        assertEq(token.allowance(alice, bob), 11 ether);
+        assertEq(token.allowance(owner, bob), 7 ether);
+        assertEq(token.nonces(owner), 1);
+        assertEq(token.totalSupply(), supply);
+        assertTrue(token.paused());
     }
 
     function test_MarketStateUsesDocumentedErc7201Slot() public {

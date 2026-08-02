@@ -100,8 +100,8 @@ class ReleaseCliTest(unittest.TestCase):
         return (
             ",".join(cli.CSV_COLUMNS)
             + "\n"
-            + f"one,INVESTOR,{ADDRESS_1},{ADDRESS_1},1,1000000,1000000,VERIFIED,SELF_SERVICE,,batch-01,PLANNED,\n"
-            + f"two,PARTNER,{second_address},{second_address},2,{v2_amount},1000000,VERIFIED,OPERATOR_ASSISTED,,batch-01,PLANNED,\n"
+            + f"one,{ADDRESS_1},{ADDRESS_1},1,1000000,rewards-year-1,{ADDRESS_1},INVESTOR,VERIFIED_SIGNATURE,SELF_SERVICE,NONE,batch-01,PLANNED\n"
+            + f"two,{second_address},{second_address},2,{v2_amount},rewards-year-2-reserve,{ADDRESS_2},PARTNER,SAFE_RECORD,OPERATOR_ASSISTED,PRESERVE_EXISTING_SCHEDULE,batch-01,PLANNED\n"
         )
 
     def test_holder_conversion_and_duplicates(self):
@@ -111,6 +111,38 @@ class ReleaseCliTest(unittest.TestCase):
         path.write_text(self.holder_csv(duplicate=True), encoding="utf-8")
         with self.assertRaises(cli.ReleaseError):
             cli.load_holders(path)
+
+    def test_migration_accounting_is_bound_to_each_phase1_source(self):
+        path = self.root / "holders.csv"
+        path.write_text(self.holder_csv(), encoding="utf-8")
+        rows = cli.load_holders(path)
+        config = {}
+        for index, (_, _, _, config_key, _) in enumerate(cli.PHASE1_CANON, start=1):
+            config[config_key] = "0x" + f"{index:040x}"
+        context = cli.Context("test", "PLAN", self.root / "test.json", config)
+        rows[0]["sourceTopLevelSafe"] = config["rewardsY1Safe"]
+        rows[1]["sourceTopLevelSafe"] = config["rewardsY2ReserveSafe"]
+        migration = {
+            "fundingSources": [
+                {
+                    "sourceAllocationId": "rewards-year-1",
+                    "sourceTopLevelSafe": config["rewardsY1Safe"],
+                    "fundingRaw": "1000000",
+                },
+                {
+                    "sourceAllocationId": "rewards-year-2-reserve",
+                    "sourceTopLevelSafe": config["rewardsY2ReserveSafe"],
+                    "fundingRaw": "2000000",
+                },
+            ]
+        }
+        self.assertEqual(
+            cli.validate_migration_accounting(rows, context, migration),
+            {"rewards-year-1": 1000000, "rewards-year-2-reserve": 2000000},
+        )
+        migration["fundingSources"][1]["fundingRaw"] = "1"
+        with self.assertRaises(cli.ReleaseError):
+            cli.validate_migration_accounting(rows, context, migration)
         path.write_text(self.holder_csv(wrong_conversion=True), encoding="utf-8")
         with self.assertRaises(cli.ReleaseError):
             cli.load_holders(path)

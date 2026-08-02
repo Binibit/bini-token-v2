@@ -7,7 +7,8 @@ Phase 2 is independent from Phase 1 and requires separate owner authorization.
 - Obtain independent external audit of vault, holder authorization, and custody.
 - Freeze approximately 50 known-holder records and SHA-256 manifest.
 - Verify ownership evidence, replacement-recipient signatures, and Safe records.
-- Ratify exact migration reserve amount and funding source from an approved Safe.
+- Ratify exact migration reserve amounts and per-holder source allocation from
+  the corresponding approved Phase 1 Safes.
 - Prove no Phase 1 allocation is silently reclassified as a tenth pool.
 - Define start/end communications, support, incident, and accounting procedures.
 - Rehearse entitlement setup, funding, sealing, migration, replay prevention,

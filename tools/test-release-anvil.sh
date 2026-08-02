@@ -20,6 +20,20 @@ cleanup() {
         kill "$ANVIL_PID" 2>/dev/null || true
         wait "$ANVIL_PID" 2>/dev/null || true
     fi
+    if [[ -n "${BINI_EVIDENCE_DIR:-}" ]]; then
+        mkdir -p "$BINI_EVIDENCE_DIR"
+        cp "$ANVIL_LOG" "$BINI_EVIDENCE_DIR/anvil.log" 2>/dev/null || true
+        for evidence_path in \
+            "$ROOT/artifacts/deployments/$NETWORK" \
+            "$ROOT/artifacts/distributions/$NETWORK" \
+            "$ROOT/artifacts/migrations/$NETWORK" \
+            "$ROOT/artifacts/verification/$NETWORK" \
+            "$ROOT/broadcast/DeployBiniV2.s.sol/31337"; do
+            if [[ -e "$evidence_path" ]]; then
+                cp -R "$evidence_path" "$BINI_EVIDENCE_DIR/"
+            fi
+        done
+    fi
     rm -rf \
         "$ROOT/artifacts/deployments/$NETWORK" \
         "$ROOT/artifacts/distributions/$NETWORK" \
@@ -247,8 +261,8 @@ rpc evm_revert "$SNAPSHOT"
 V1_TOKEN="$(deploy_contract test/mocks/MockTokens.sol:MockToken --constructor-args 'BINI V1' BINI1 12)"
 VAULT="$(deploy_contract src/BiniMigrationVault.sol:BiniMigrationVault --constructor-args "$V1_TOKEN" "$TOKEN" "$TIMELOCK")"
 cat >"$HOLDERS" <<CSV
-holderId,category,v1Address,v2Recipient,v1RawAmount,v2RawAmount,conversionRate,ownershipVerification,migrationMethod,vestingGrantId,batch,status,notes
-holder-001,KNOWN_HOLDER,$DEPLOYER,$DEPLOYER,1000000000000,1000000000000000000,1000000,VERIFIED,SELF_SERVICE,,batch-01,READY,Anvil release rehearsal
+holderId,v1Address,v2Recipient,v1RawAmount,v2RawAmount,sourceAllocationId,sourceTopLevelSafe,beneficiaryType,ownershipProof,migrationMethod,vestingTreatment,batch,status
+holder-001,$DEPLOYER,$DEPLOYER,1000000000000,1000000000000000000,ecosystem-reserve,$ECOSYSTEM,KNOWN_HOLDER,ONCHAIN_PROOF,SELF_SERVICE,NONE,batch-01,READY
 CSV
 HOLDER_HASH="sha256:$(shasum -a 256 "$HOLDERS" | awk '{print $1}')"
 VAULT_HASH="$(cast keccak "$(forge inspect BiniMigrationVault bytecode)")"
@@ -266,6 +280,7 @@ jq \
      | .v2Proxy = $v2
      | .migrationVault = $vault
      | .fundingReserveRaw = "1000000000000000000"
+     | .fundingSources = [{"sourceAllocationId":"ecosystem-reserve","sourceTopLevelSafe":"0x0000000000000000000000000000000000002008","fundingRaw":"1000000000000000000"}]
      | .migrationStart = "ANVIL_REHEARSAL"
      | .holderManifestHash = $holderHash
      | .expectedVaultCreationBytecodeHash = $vaultHash' \

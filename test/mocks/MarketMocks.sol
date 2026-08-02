@@ -86,6 +86,58 @@ contract ShortReturnV2Factory {
     }
 }
 
+contract RevertingV2Factory {
+    function getPair(address, address) external pure returns (address) {
+        revert("MALICIOUS_FACTORY");
+    }
+}
+
+contract GasGriefV2Factory {
+    function getPair(address, address) external pure returns (address pair) {
+        pair = address(0);
+        assembly {
+            for {} 1 {} {}
+        }
+    }
+}
+
+contract Create2V2Factory {
+    mapping(address => mapping(address => address)) public getPair;
+
+    function predictedPair(address tokenA, address tokenB, bytes32 salt) external view returns (address) {
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(MockV2Pool).creationCode, abi.encode(tokenA, tokenB)));
+        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))));
+    }
+
+    function createPair(address tokenA, address tokenB, bytes32 salt) external returns (address pair) {
+        pair = address(new MockV2Pool{salt: salt}(tokenA, tokenB));
+        getPair[tokenA][tokenB] = pair;
+        getPair[tokenB][tokenA] = pair;
+    }
+}
+
+contract SafeLikeWallet {}
+
+contract ProxyWalletImplementation {
+    function initialize() external pure {}
+
+    function walletVersion() external pure returns (uint256) {
+        return 1;
+    }
+}
+
+contract ERC4337AccountLike {
+    function validateUserOp(bytes32, bytes calldata) external pure returns (uint256 validationData) {
+        return 0;
+    }
+}
+
+contract EIP7702DelegateLike {
+    function delegatedAccountVersion() external pure returns (uint256) {
+        return 7702;
+    }
+}
+
 contract RevertingProbeWallet {
     fallback() external {
         revert();

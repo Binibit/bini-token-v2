@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-phase1-deployment-receipt.json",
+  "title": "BINI V2 Phase 1 confirmed deployment receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "chainId", "network", "deploymentTimestamp", "deploymentBlock", "deployer",
+    "implementation", "proxy", "timelock", "safes", "transactionHashes",
+    "compilerVersion", "foundryVersion", "openzeppelinDependencyShas",
+    "creationBytecodeHash", "runtimeBytecodeHash", "buildRuntimeBytecodeHash",
+    "abiHash", "storageLayoutHash", "gitCommit", "workingTreeStatus", "broadcastReceipt"
+  ],
+  "properties": {
+    "chainId": {"const": 11155111},
+    "network": {"const": "sepolia"},
+    "deploymentTimestamp": {"type": "string", "format": "date-time"},
+    "deploymentBlock": {"type": "integer", "minimum": 1},
+    "deployer": {"$ref": "#/$defs/address"},
+    "implementation": {"$ref": "#/$defs/address"},
+    "proxy": {"$ref": "#/$defs/address"},
+    "timelock": {"$ref": "#/$defs/address"},
+    "safes": {"type": "object", "minProperties": 13, "additionalProperties": {"$ref": "#/$defs/address"}},
+    "transactionHashes": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/hash"}},
+    "compilerVersion": {"const": "0.8.24"},
+    "foundryVersion": {"type": "string", "minLength": 1},
+    "openzeppelinDependencyShas": {"type": "object", "minProperties": 2, "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{40}$"}},
+    "creationBytecodeHash": {"$ref": "#/$defs/hash"},
+    "runtimeBytecodeHash": {"$ref": "#/$defs/hash"},
+    "buildRuntimeBytecodeHash": {"$ref": "#/$defs/hash"},
+    "abiHash": {"$ref": "#/$defs/hash"},
+    "storageLayoutHash": {"$ref": "#/$defs/hash"},
+    "gitCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "workingTreeStatus": {"const": "clean"},
+    "broadcastReceipt": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "address": {"type": "string", "pattern": "^0x(?!0{40}$)[0-9a-fA-F]{40}$"},
+    "hash": {"type": "string", "pattern": "^0x[0-9a-fA-F]{64}$"}
+  }
+}

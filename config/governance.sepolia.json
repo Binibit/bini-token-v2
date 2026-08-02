@@ -1,0 +1,39 @@
+{
+  "status": "INPUTS_REQUIRED",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "ratified": false,
+  "governanceSafe": {"address": null, "owners": [], "threshold": null},
+  "securitySafe": {"address": null, "owners": [], "threshold": null},
+  "genesisDistributionSafe": {"address": null, "owners": [], "threshold": null},
+  "allocationSafes": {
+    "rewards-year-1": {"address": null, "owners": [], "threshold": null},
+    "rewards-year-2-reserve": {"address": null, "owners": [], "threshold": null},
+    "rewards-year-3-reserve": {"address": null, "owners": [], "threshold": null},
+    "rewards-year-4-reserve": {"address": null, "owners": [], "threshold": null},
+    "team-founders-reserve": {"address": null, "owners": [], "threshold": null},
+    "marketing-operations": {"address": null, "owners": [], "threshold": null},
+    "marketing-milestone-reserve": {"address": null, "owners": [], "threshold": null},
+    "ecosystem-reserve": {"address": null, "owners": [], "threshold": null},
+    "dex-liquidity-reserve": {"address": null, "owners": [], "threshold": null}
+  },
+  "signerSetOverlapReviewed": false,
+  "timelock": {
+    "address": null,
+    "proposer": null,
+    "executor": null,
+    "canceller": null,
+    "admin": "SELF_ADMINISTERED_AFTER_DEPLOYMENT",
+    "minimumDelaySeconds": 172800
+  },
+  "deployer": {"keystoreAccount": "bini-deployer", "address": null, "funded": false, "residualProductionRoles": null},
+  "operations": {"emergencyRecovery": null, "signerRotation": null},
+  "missingInputs": [
+    "ratified Safe addresses",
+    "Safe owner sets and thresholds",
+    "signer-set overlap decision",
+    "funded encrypted deployer keystore",
+    "Sepolia RPC endpoint",
+    "emergency recovery and signer rotation procedures"
+  ]
+}

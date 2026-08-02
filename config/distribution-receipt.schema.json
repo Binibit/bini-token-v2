@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-phase1-distribution-receipt.json",
+  "title": "BINI V2 Phase 1 confirmed nine-Safe distribution receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "chainId", "network", "releaseCommit", "token", "genesisSafe", "safeTransactionHash",
+    "executionTransactionHash", "blockNumber", "allocations", "transferEventCount", "postconditions"
+  ],
+  "properties": {
+    "chainId": {"const": 11155111},
+    "network": {"const": "sepolia"},
+    "releaseCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "token": {"$ref": "#/$defs/address"},
+    "genesisSafe": {"$ref": "#/$defs/address"},
+    "safeTransactionHash": {"$ref": "#/$defs/hash"},
+    "executionTransactionHash": {"$ref": "#/$defs/hash"},
+    "blockNumber": {"type": "integer", "minimum": 1},
+    "allocations": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "allocationId", "recipient", "amountRaw", "balanceDeltaRaw", "isSafe"],
+        "properties": {
+          "order": {"type": "integer", "minimum": 1, "maximum": 9},
+          "allocationId": {"type": "string", "minLength": 1},
+          "recipient": {"$ref": "#/$defs/address"},
+          "amountRaw": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+          "balanceDeltaRaw": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+          "isSafe": {"const": true}
+        }
+      }
+    },
+    "transferEventCount": {"const": 9},
+    "postconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["genesisBalanceRaw", "destinationDeltaSumRaw", "totalSupplyRaw", "marketOpen", "dexRecipientCount", "implementationUnchanged", "rolesUnchanged"],
+      "properties": {
+        "genesisBalanceRaw": {"const": "0"},
+        "destinationDeltaSumRaw": {"const": "1000000000000000000000000000"},
+        "totalSupplyRaw": {"const": "1000000000000000000000000000"},
+        "marketOpen": {"const": false},
+        "dexRecipientCount": {"const": 0},
+        "implementationUnchanged": {"const": true},
+        "rolesUnchanged": {"const": true}
+      }
+    }
+  },
+  "$defs": {
+    "address": {"type": "string", "pattern": "^0x(?!0{40}$)[0-9a-fA-F]{40}$"},
+    "hash": {"type": "string", "pattern": "^0x[0-9a-fA-F]{64}$"}
+  }
+}

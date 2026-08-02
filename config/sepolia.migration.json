@@ -8,7 +8,13 @@
   "v2Proxy": "0x0000000000000000000000000000000000003002",
   "migrationVault": "0x0000000000000000000000000000000000003003",
   "conversionFactor": "1000000",
-  "fundingReserveSafe": "0x0000000000000000000000000000000000002008",
+  "fundingSources": [
+    {
+      "sourceAllocationId": "ecosystem-reserve",
+      "sourceTopLevelSafe": "0x0000000000000000000000000000000000002008",
+      "fundingRaw": "1"
+    }
+  ],
   "fundingReserveRaw": "1",
   "migrationStart": "OWNER_RATIFICATION_REQUIRED",
   "holderManifestHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",

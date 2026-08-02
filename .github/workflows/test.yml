@@ -19,6 +19,8 @@ jobs:
     name: Release gates
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      BINI_EVIDENCE_DIR: ${{ runner.temp }}/release-evidence
     permissions:
       contents: read
     steps:
@@ -44,17 +46,22 @@ jobs:
           npm ci --ignore-scripts
           pipx install slither-analyzer==0.11.4
 
+      - name: Prepare release evidence
+        run: mkdir -p "$BINI_EVIDENCE_DIR"
+
       - name: Run receipt-backed Anvil release rehearsal
-        run: tools/test-release-anvil.sh
+        run: tools/test-release-anvil.sh 2>&1 | tee "$BINI_EVIDENCE_DIR/anvil-rehearsal.log"
 
       - name: Check formatting
         run: forge fmt --check
 
       - name: Build
-        run: forge build --sizes
+        run: |
+          forge build --sizes 2>&1 | tee "$BINI_EVIDENCE_DIR/build.log"
+          tools/export-ci-build-evidence.sh
 
       - name: Validate UUPS implementation
-        run: npm run validate:upgrades
+        run: npm run validate:upgrades 2>&1 | tee "$BINI_EVIDENCE_DIR/uups-validation.log"
 
       - name: Run static analysis
         run: >-
@@ -62,32 +69,47 @@ jobs:
           --filter-paths 'lib|test|script'
           --exclude-dependencies
           --exclude assembly,low-level-calls,unindexed-event-address
+          --json "$BINI_EVIDENCE_DIR/slither-report.json"
+          2>&1 | tee "$BINI_EVIDENCE_DIR/slither.log"
 
       - name: Check release artifacts and selector policy
-        run: tools/release-artifacts.sh check
+        run: tools/release-artifacts.sh check 2>&1 | tee "$BINI_EVIDENCE_DIR/release-artifacts.log"
 
       - name: Run local tests
-        run: forge test --no-match-path "test/fork/*" -vv
+        run: forge test --no-match-path "test/fork/*" -vv 2>&1 | tee "$BINI_EVIDENCE_DIR/solidity-tests.log"
 
       - name: Run release CLI tests
-        run: python3 -m unittest discover -s test_cli -p 'test_*.py' -v
+        run: python3 -m unittest discover -s test_cli -p 'test_*.py' -v 2>&1 | tee "$BINI_EVIDENCE_DIR/cli-tests.log"
 
       - name: Run pinned mainnet-fork tests
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
-        run: tools/test-mainnet-fork.sh
+        run: tools/test-mainnet-fork.sh 2>&1 | tee "$BINI_EVIDENCE_DIR/fork-tests.log"
 
       - name: Enforce core coverage
-        run: tools/coverage-gate.sh
+        run: |
+          tools/coverage-gate.sh 2>&1 | tee "$BINI_EVIDENCE_DIR/coverage.log"
+          cp lcov.info "$BINI_EVIDENCE_DIR/coverage.lcov"
 
       - name: Check dependency advisories
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high 2>&1 | tee "$BINI_EVIDENCE_DIR/npm-audit.log"
 
       - name: Validate JSON
         run: >-
           jq empty
+          BINI_V2_PHASE1_RELEASE_MANIFEST.json
           artifacts/release/*.json
           artifacts/examples/*.json
+          artifacts/sepolia/phase1/*.json
           config/*.json
           data/*.json
           policy/*.json
+
+      - name: Upload immutable release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bini-v2-release-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/release-evidence
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,7 @@
+{
+  "status": "NOT_EXECUTED",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "transactionHashes": [],
+  "reason": "Real Safe addresses, funded deployer keystore and Sepolia RPC were not available. This is a blocker record, not a deployment receipt."
+}

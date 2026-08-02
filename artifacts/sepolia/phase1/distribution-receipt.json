@@ -1,0 +1,7 @@
+{
+  "status": "NOT_EXECUTED",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "transactionHashes": [],
+  "reason": "Phase 1 deployment was not executed. No Safe batch was signed and no BINI was distributed on Sepolia."
+}

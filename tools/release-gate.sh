@@ -21,8 +21,10 @@ tools/test-mainnet-fork.sh
 tools/coverage-gate.sh
 
 jq empty \
+  BINI_V2_PHASE1_RELEASE_MANIFEST.json \
   artifacts/release/*.json \
   artifacts/examples/*.json \
+  artifacts/sepolia/phase1/*.json \
   config/*.json \
   data/*.json \
   policy/*.json

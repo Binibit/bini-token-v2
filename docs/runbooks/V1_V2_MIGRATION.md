@@ -20,7 +20,9 @@ wallet. Telegram, email and spreadsheet edits are not authorization.
 ```
 
 Review duplicate checks, ownership evidence, exact 12-to-18 conversion, input
-hash and batches of at most 20 holders. Timelock must execute
+hash, source allocation, source top-level Safe and batches of at most 20
+holders. `fundingSources` must exactly match holder liabilities for every source
+allocation. Timelock must execute
 `setEntitlements(...)` for the reviewed action IDs and then
 `sealEntitlements()` after exact reserve funding.
 
@@ -28,6 +30,11 @@ When a deployment manifest exists, `migration-plan` wraps these calls in
 deterministic Timelock `scheduleBatch` and `executeBatch` Safe packages. Fund
 the reserve before executing that batch; sealing an empty entitlement set is
 rejected on-chain.
+
+Migration is never a tenth economic pool. For every Phase 1 allocation, preserve
+the identity `migrated V2 + remaining reserve + later distributions = original
+Phase 1 allocation`. A shared vault is operationally acceptable only when each
+funding transfer and receipt preserves that source attribution.
 
 ## Per-batch packages
 

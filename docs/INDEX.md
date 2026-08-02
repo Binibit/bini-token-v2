@@ -1,5 +1,13 @@
 # Documentation Index
 
+## RC2 Release Control
+
+- [RC2 verdict](../BINI_V2_RC2_PHASE1_SEPOLIA_VERDICT.md)
+- [Phase 1 audit scope](../BINI_V2_PHASE1_AUDIT_SCOPE.md)
+- [Phase 2 accounting canon](../BINI_V2_PHASE2_MIGRATION_ACCOUNTING_CANON.md)
+- [RC2 reviews](../review/rc2/00_SOURCE_REALITY.md)
+- [External audit package](../audit-package/README.md)
+
 ## Canon
 
 - [Core product requirement](PRODUCT_REQUIREMENT.md)

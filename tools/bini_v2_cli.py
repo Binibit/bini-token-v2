@@ -44,20 +44,21 @@ PHASE1_CANON = (
     ("dex-liquidity-reserve", "DEX Liquidity", "DEX Liquidity Reserve", "liquidityReserveSafe", 50_000_000 * 10**18),
 )
 PHASE1_DESTINATION_KEYS = tuple(item[3] for item in PHASE1_CANON)
+PHASE1_BY_ID = {item[0]: item for item in PHASE1_CANON}
 CSV_COLUMNS = (
     "holderId",
-    "category",
     "v1Address",
     "v2Recipient",
     "v1RawAmount",
     "v2RawAmount",
-    "conversionRate",
-    "ownershipVerification",
+    "sourceAllocationId",
+    "sourceTopLevelSafe",
+    "beneficiaryType",
+    "ownershipProof",
     "migrationMethod",
-    "vestingGrantId",
+    "vestingTreatment",
     "batch",
     "status",
-    "notes",
 )
 
 
@@ -326,15 +327,34 @@ def validate_migration_config(config: dict[str, Any], context: Context) -> None:
         raise ReleaseError("migration config must declare PHASE_2")
     if config.get("network") != context.network or strict_int(config.get("chainId"), "migration chainId") != context.chain_id:
         raise ReleaseError("migration config network/chain does not match Phase 1 deployment")
-    for key in ("v1Token", "v2Proxy", "migrationVault", "fundingReserveSafe"):
+    for key in ("v1Token", "v2Proxy", "migrationVault"):
         require_address(config.get(key), f"migration.{key}")
     if str(config.get("conversionFactor")) != str(V1_TO_V2_SCALE):
         raise ReleaseError("migration conversionFactor must be exactly 1000000")
     if strict_int(config.get("fundingReserveRaw"), "migration.fundingReserveRaw") <= 0:
         raise ReleaseError("migration.fundingReserveRaw must be positive")
-    approved_reserves = {context.config[key].lower() for key in PHASE1_DESTINATION_KEYS}
-    if config["fundingReserveSafe"].lower() not in approved_reserves:
-        raise ReleaseError("migration.fundingReserveSafe must be one of the approved Phase 1 custody Safes")
+    funding_sources = config.get("fundingSources")
+    if not isinstance(funding_sources, list) or not funding_sources:
+        raise ReleaseError("migration.fundingSources must be a non-empty array")
+    seen_allocations: set[str] = set()
+    funding_total = 0
+    for index, source in enumerate(funding_sources):
+        if not isinstance(source, dict):
+            raise ReleaseError(f"migration funding source {index} must be an object")
+        allocation_id = source.get("sourceAllocationId")
+        if allocation_id not in PHASE1_BY_ID or allocation_id in seen_allocations:
+            raise ReleaseError(f"invalid or duplicate migration sourceAllocationId: {allocation_id}")
+        seen_allocations.add(allocation_id)
+        config_key = PHASE1_BY_ID[allocation_id][3]
+        source_safe = require_address(source.get("sourceTopLevelSafe"), f"migration funding source {index} Safe")
+        if source_safe.lower() != context.config[config_key].lower():
+            raise ReleaseError(f"migration source {allocation_id} does not match config.{config_key}")
+        source_amount = strict_int(source.get("fundingRaw"), f"migration funding source {index} amount")
+        if source_amount <= 0:
+            raise ReleaseError(f"migration funding source {index} amount must be positive")
+        funding_total += source_amount
+    if funding_total != strict_int(config.get("fundingReserveRaw"), "migration.fundingReserveRaw"):
+        raise ReleaseError("migration fundingSources must sum exactly to fundingReserveRaw")
     manifest_hash = config.get("holderManifestHash")
     if not isinstance(manifest_hash, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest_hash):
         raise ReleaseError("migration.holderManifestHash must be a sha256 hash")
@@ -421,17 +441,64 @@ def load_holders(path: Path) -> list[dict[str, str]]:
         v2_raw = strict_int(row["v2RawAmount"].strip(), f"row {row_number} v2RawAmount")
         if v1_raw <= 0 or v2_raw != v1_raw * V1_TO_V2_SCALE:
             raise ReleaseError(f"inexact 12-to-18 decimal conversion at row {row_number}")
-        if row["conversionRate"].strip() != "1000000":
-            raise ReleaseError(f"conversionRate must be 1000000 at row {row_number}")
+        allocation_id = row["sourceAllocationId"].strip()
+        if allocation_id not in PHASE1_BY_ID:
+            raise ReleaseError(f"invalid sourceAllocationId at row {row_number}")
+        row["sourceAllocationId"] = allocation_id
+        source_safe = require_address(row["sourceTopLevelSafe"].strip(), f"row {row_number} sourceTopLevelSafe")
+        row["sourceTopLevelSafe"] = source_safe
+        if not row["beneficiaryType"].strip():
+            raise ReleaseError(f"beneficiaryType is required at row {row_number}")
+        if row["ownershipProof"].strip() not in {
+            "PENDING",
+            "VERIFIED_SIGNATURE",
+            "SAFE_RECORD",
+            "ONCHAIN_PROOF",
+            "LEGAL_ATTESTATION",
+        }:
+            raise ReleaseError(f"invalid ownershipProof at row {row_number}")
         if row["migrationMethod"].strip() not in {
             "SELF_SERVICE",
             "OPERATOR_ASSISTED",
             "PROJECT_CONTROLLED_WALLET",
         }:
             raise ReleaseError(f"invalid migrationMethod at row {row_number}")
+        if row["vestingTreatment"].strip() not in {
+            "NONE",
+            "PRESERVE_EXISTING_SCHEDULE",
+            "NEW_VESTING_REQUIRED",
+            "RESERVE_ONLY",
+        }:
+            raise ReleaseError(f"invalid vestingTreatment at row {row_number}")
         if not row["batch"].strip():
             raise ReleaseError(f"batch is required at row {row_number}")
+        if not row["status"].strip():
+            raise ReleaseError(f"status is required at row {row_number}")
     return rows
+
+
+def validate_migration_accounting(
+    rows: list[dict[str, str]], context: Context, migration: dict[str, Any]
+) -> dict[str, int]:
+    liabilities: dict[str, int] = {}
+    for row in rows:
+        allocation_id = row["sourceAllocationId"]
+        _, _, _, config_key, allocation_cap = PHASE1_BY_ID[allocation_id]
+        if row["sourceTopLevelSafe"].lower() != context.config[config_key].lower():
+            raise ReleaseError(f"holder {row['holderId']} source Safe does not match {allocation_id}")
+        liabilities[allocation_id] = liabilities.get(allocation_id, 0) + strict_int(
+            row["v2RawAmount"], f"holder {row['holderId']} v2RawAmount"
+        )
+        if liabilities[allocation_id] > allocation_cap:
+            raise ReleaseError(f"migration liability exceeds Phase 1 allocation {allocation_id}")
+
+    configured = {
+        source["sourceAllocationId"]: strict_int(source["fundingRaw"], "migration fundingRaw")
+        for source in migration["fundingSources"]
+    }
+    if configured != liabilities:
+        raise ReleaseError("migration fundingSources do not exactly match holder liabilities by source allocation")
+    return liabilities
 
 
 def action_id(chain_id: int, stage: str, recipient: str, amount: int, source_version: str) -> str:
@@ -1149,6 +1216,7 @@ def command_migration_plan(args: argparse.Namespace) -> None:
     if not holders_path.is_absolute():
         holders_path = ROOT / holders_path
     rows = load_holders(holders_path)
+    source_liabilities = validate_migration_accounting(rows, context, migration)
     source_hash = canonical_hash(holders_path)
     actions = migration_actions(context, rows, source_hash)
     total_v2_raw = sum(strict_int(row["v2RawAmount"], "v2RawAmount") for row in rows)
@@ -1203,6 +1271,7 @@ def command_migration_plan(args: argparse.Namespace) -> None:
         "holderCount": len(actions),
         "totalV1Raw": str(sum(strict_int(row["v1RawAmount"], "v1RawAmount") for row in rows)),
         "totalV2Raw": str(total_v2_raw),
+        "sourceLiabilitiesRaw": {key: str(value) for key, value in sorted(source_liabilities.items())},
         "batches": batches,
         "governanceCalls": governance_calls,
         "governanceRequired": "Timelock must set all entitlements and seal only after exact V2 reserve funding.",
@@ -1244,7 +1313,9 @@ def command_migrate(args: argparse.Namespace) -> None:
     if not holders_path.is_absolute():
         holders_path = ROOT / holders_path
     source_hash = canonical_hash(holders_path)
-    rows = [row for row in load_holders(holders_path) if row["batch"] == args.batch]
+    all_rows = load_holders(holders_path)
+    validate_migration_accounting(all_rows, context, migration)
+    rows = [row for row in all_rows if row["batch"] == args.batch]
     if not rows:
         raise ReleaseError(f"batch not found: {args.batch}")
     deployment = load_deployment(context.network) if deployment_file(context.network).exists() else None
@@ -1311,7 +1382,11 @@ def command_migrate(args: argparse.Namespace) -> None:
         raise ReleaseError("migration configuration still contains illustrative inputs")
     if migration["holderManifestHash"] != source_hash:
         raise ReleaseError("holder CSV hash does not match migration.holderManifestHash")
-    pending = [row["holderId"] for row in rows if row["ownershipVerification"] not in {"VERIFIED", "SAFE_RECORD"}]
+    pending = [
+        row["holderId"]
+        for row in rows
+        if row["ownershipProof"] not in {"VERIFIED_SIGNATURE", "SAFE_RECORD", "ONCHAIN_PROOF", "LEGAL_ATTESTATION"}
+    ]
     if pending:
         raise ReleaseError(f"ownership verification is incomplete for: {', '.join(pending)}")
     if context.mode in {"SIMULATE", "SAFE_PROPOSAL"}:

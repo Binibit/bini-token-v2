@@ -1,0 +1,12 @@
+# RC2 ownership map. Enforcement requires the main-branch ruleset documented in review/rc2.
+*.sol @Binibit-Labs
+/src/ @Binibit-Labs
+/script/ @Binibit-Labs
+/test/ @Binibit-Labs
+/tools/ @Binibit-Labs
+/.github/ @Binibit-Labs
+/config/ @Binibit-Labs
+/data/ @Binibit-Labs
+/policy/ @Binibit-Labs
+/BINI_V2_PHASE1_RELEASE_MANIFEST.json @Binibit-Labs
+/audit-package/ @Binibit-Labs

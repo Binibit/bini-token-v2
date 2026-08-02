@@ -20,5 +20,9 @@ grep -Eq 'Bad upgrade|Upgraded .* to an incompatible type|storage layout' /tmp/b
   echo "OpenZeppelin validator failed without a storage-incompatibility diagnostic" >&2
   exit 1
 }
+if [[ -n "${BINI_EVIDENCE_DIR:-}" ]]; then
+  mkdir -p "$BINI_EVIDENCE_DIR"
+  cp /tmp/bini-v2-incompatible-storage.log "$BINI_EVIDENCE_DIR/uups-incompatible-storage.log"
+fi
 rm -f /tmp/bini-v2-incompatible-storage.log
 echo "OpenZeppelin validator rejected the incompatible storage fixture as expected"

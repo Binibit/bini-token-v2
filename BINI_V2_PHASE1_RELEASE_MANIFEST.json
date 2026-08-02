@@ -1,0 +1,53 @@
+{
+  "status": "BLOCKED",
+  "phase": "PHASE_1",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "releaseCommit": null,
+  "releaseTag": null,
+  "bindingRule": "Use the exact github.sha of the successful final RC2 CI run and its same-SHA evidence artifact. Tag only after all Sepolia and independent-review gates pass.",
+  "token": {
+    "name": "Binibit",
+    "symbol": "BINI",
+    "decimals": 18,
+    "totalSupplyRaw": "1000000000000000000000000000",
+    "implementation": null,
+    "proxy": null
+  },
+  "governance": {
+    "manifest": "config/governance.sepolia.json",
+    "ratified": false,
+    "timelock": null,
+    "deployerResidualRoleVerified": false
+  },
+  "allocations": [
+    {"order": 1, "allocationId": "rewards-year-1", "safe": null, "amountRaw": "210000000000000000000000000"},
+    {"order": 2, "allocationId": "rewards-year-2-reserve", "safe": null, "amountRaw": "180000000000000000000000000"},
+    {"order": 3, "allocationId": "rewards-year-3-reserve", "safe": null, "amountRaw": "120000000000000000000000000"},
+    {"order": 4, "allocationId": "rewards-year-4-reserve", "safe": null, "amountRaw": "90000000000000000000000000"},
+    {"order": 5, "allocationId": "team-founders-reserve", "safe": null, "amountRaw": "150000000000000000000000000"},
+    {"order": 6, "allocationId": "marketing-operations", "safe": null, "amountRaw": "5000000000000000000000000"},
+    {"order": 7, "allocationId": "marketing-milestone-reserve", "safe": null, "amountRaw": "95000000000000000000000000"},
+    {"order": 8, "allocationId": "ecosystem-reserve", "safe": null, "amountRaw": "100000000000000000000000000"},
+    {"order": 9, "allocationId": "dex-liquidity-reserve", "safe": null, "amountRaw": "50000000000000000000000000"}
+  ],
+  "receipts": {
+    "deployment": {"path": "artifacts/sepolia/phase1/deployment-receipt.json", "status": "NOT_EXECUTED"},
+    "distribution": {"path": "artifacts/sepolia/phase1/distribution-receipt.json", "status": "NOT_EXECUTED"}
+  },
+  "postconditions": {
+    "genesisBalanceRaw": null,
+    "destinationDeltaSumRaw": null,
+    "totalSupplyRaw": null,
+    "marketOpen": null,
+    "dexRecipientCount": null
+  },
+  "blockers": [
+    "GitHub main ruleset unavailable for the current private repository plan",
+    "ratified Safe topology unavailable",
+    "funded deployer keystore unavailable",
+    "Sepolia RPC unavailable",
+    "deployment and distribution not executed",
+    "independent review and external audit pending"
+  ]
+}

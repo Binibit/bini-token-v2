@@ -56,6 +56,36 @@ contract TimelockGovernanceTest is Test {
         assertTrue(token.marketOpen());
     }
 
+    function test_ScheduleEarlyRejectCancelRescheduleAndExecutePrivilegedCall() public {
+        ActorContract infrastructure = new ActorContract();
+        address[] memory accounts = new address[](1);
+        accounts[0] = address(infrastructure);
+        bytes memory data = abi.encodeCall(BiniTokenV2.setMarketInfrastructure, (accounts, true));
+        bytes32 predecessor;
+        bytes32 salt = keccak256("BINI_POLICY_CHANGE");
+
+        vm.prank(proposer);
+        timelock.schedule(address(token), 0, data, predecessor, salt, DELAY);
+        vm.expectRevert();
+        vm.prank(executor);
+        timelock.execute(address(token), 0, data, predecessor, salt);
+
+        bytes32 operationId = timelock.hashOperation(address(token), 0, data, predecessor, salt);
+        vm.prank(proposer);
+        timelock.cancel(operationId);
+        assertFalse(token.isMarketInfrastructure(address(infrastructure)));
+
+        vm.prank(proposer);
+        timelock.schedule(address(token), 0, data, predecessor, salt, DELAY);
+        vm.warp(block.timestamp + DELAY);
+        vm.prank(executor);
+        timelock.execute(address(token), 0, data, predecessor, salt);
+
+        assertTrue(token.isMarketInfrastructure(address(infrastructure)));
+        assertFalse(token.hasRole(token.MARKET_MANAGER_ROLE(), proposer));
+        assertFalse(token.hasRole(token.MARKET_MANAGER_ROLE(), executor));
+    }
+
     function test_PauserCannotOpenOrUnpause() public {
         vm.prank(pauser);
         token.pause();
