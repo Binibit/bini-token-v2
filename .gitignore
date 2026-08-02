@@ -7,6 +7,8 @@ artifacts/migrations/
 artifacts/verification/
 .env
 node_modules/
+__pycache__/
+*.py[cod]
 lcov.info
 coverage-summary.json
 .DS_Store
