@@ -21,5 +21,9 @@ CI-only raw evidence:
 - Solidity, CLI, fork and dependency logs;
 - receipt-backed Anvil logs and generated receipts.
 
+The final CI step regenerates `SHA256SUMS` only after every gate has completed,
+verifies the checkout is clean and checks every file before upload. GitHub then
+records a separate digest for the uploaded archive.
+
 Sepolia blocker records are under `artifacts/sepolia/phase1/`; they are not
 confirmed receipts.
