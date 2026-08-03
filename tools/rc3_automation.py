@@ -163,6 +163,28 @@ def external_keystore_path(path: str | Path) -> Path:
     return resolved
 
 
+def external_secret_file(path: str | Path, label: str) -> Path:
+    """Resolve a small, private, regular secret file outside the repository."""
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    if _contains_symlink(candidate) or candidate.is_symlink():
+        raise RC3Error(f"{label} path must not contain symlinks: {candidate}")
+    resolved = candidate.resolve(strict=False)
+    root = ROOT.resolve()
+    if resolved == root or root in resolved.parents:
+        raise RC3Error(f"{label} must be stored outside the repository")
+    if not resolved.is_file():
+        raise RC3Error(f"{label} must be a regular file: {resolved}")
+    permissions = stat.S_IMODE(resolved.stat().st_mode)
+    if permissions & 0o077:
+        raise RC3Error(f"{label} permissions are too broad ({oct(permissions)}): {resolved}")
+    size = resolved.stat().st_size
+    if size < 2 or size > 4096:
+        raise RC3Error(f"{label} must contain one non-empty line and be at most 4096 bytes")
+    return resolved
+
+
 def require_exact_fields(value: dict[str, Any], allowed: Iterable[str], label: str, required: Iterable[str] = ()) -> None:
     allowed_set = set(allowed)
     unknown = sorted(set(value) - allowed_set)
@@ -382,7 +404,7 @@ def read_public_keystore_address(path: Path) -> str:
     command = ["cast", "wallet", "address", "--keystore", str(path)]
     password_file = os.environ.get("BINI_TEST_KEYSTORE_PASSWORD_FILE")
     if password_file:
-        command.extend(["--password-file", password_file])
+        command.extend(["--password-file", str(external_secret_file(password_file, "keystore password file"))])
     elif os.environ.get("BINI_RC3A_TEST_MODE") == "1":
         command.extend(["--password", os.environ.get("BINI_RC3A_TEST_KEYSTORE_PASSWORD", "rc3a-ephemeral-only")])
     else:
@@ -544,7 +566,7 @@ def foundry_broadcast(network: str, script: str, env: dict[str, str], selected_m
             account = os.environ.get("DEPLOYER_ACCOUNT")
             if not account:
                 raise RC3Error("BROADCAST requires DEPLOYER_ACCOUNT encrypted keystore")
-            command.extend(["--broadcast", "--account", account])
+            command.extend(["--broadcast", *signing_wallet_args(account)])
     run(command, env=env, capture=False)
     if selected_mode != "BROADCAST":
         return None
@@ -1150,7 +1172,16 @@ def account_keystore(account_name: str) -> Path | None:
     explicit = os.environ.get("BINI_TEST_KEYSTORE_DIR")
     if not explicit:
         return None
-    return find_account_file(Path(explicit), account_name)
+    directory = external_keystore_path(explicit)
+    if not directory.is_dir():
+        raise RC3Error(f"external keystore directory is missing: {directory}")
+    permissions = stat.S_IMODE(directory.stat().st_mode)
+    if permissions & 0o077:
+        raise RC3Error(f"keystore directory permissions are too broad ({oct(permissions)}): {directory}")
+    keystore = find_account_file(directory, account_name)
+    if keystore is None:
+        raise RC3Error(f"missing encrypted keystore for configured account: {account_name}")
+    return keystore
 
 
 def signing_wallet_args(account_name: str) -> list[str]:
@@ -1159,9 +1190,12 @@ def signing_wallet_args(account_name: str) -> list[str]:
         result = ["--keystore", str(keystore)]
         password_file = os.environ.get("BINI_TEST_KEYSTORE_PASSWORD_FILE")
         if password_file:
-            result.extend(["--password-file", password_file])
+            password_path = external_secret_file(password_file, "keystore password file")
+            result.extend(["--password-file", str(password_path)])
         elif os.environ.get("BINI_RC3A_TEST_MODE") == "1":
             result.extend(["--password", os.environ.get("BINI_RC3A_TEST_KEYSTORE_PASSWORD", "rc3a-ephemeral-only")])
+        else:
+            raise RC3Error("external keystore signing requires BINI_TEST_KEYSTORE_PASSWORD_FILE")
         return result
     return ["--account", account_name]
 
@@ -1366,7 +1400,7 @@ def command_safe_tx_execute(args: argparse.Namespace) -> None:
         submitter_account = os.environ.get("SAFE_EXECUTOR_ACCOUNT")
         if not submitter_account:
             raise RC3Error("SAFE_EXECUTE requires SAFE_EXECUTOR_ACCOUNT encrypted keystore")
-        call_args.extend(["--account", submitter_account])
+        call_args.extend(signing_wallet_args(submitter_account))
     receipt = run_json(["cast", "send", *call_args], "Safe execution")
     tx_hash = receipt.get("transactionHash") or receipt.get("hash")
     require_hash(tx_hash, "Safe execution transaction")

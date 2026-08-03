@@ -309,6 +309,45 @@ class RC3AutomationTest(unittest.TestCase):
         with mock.patch.object(rc3, "ROOT", repository), self.assertRaises(rc3.RC3Error):
             rc3.test_keystore_dir(Namespace(keystore_dir=str(alias)))
 
+    def test_external_keystore_signing_uses_password_file_without_account_fallback(self):
+        repository = self.root / "repo"
+        repository.mkdir()
+        keystore_dir = self.root / "keys"
+        keystore_dir.mkdir(mode=0o700)
+        keystore = keystore_dir / rc3.SEPOLIA_DEPLOYER_ACCOUNT_NAME
+        keystore.write_text("{}\n", encoding="utf-8")
+        keystore.chmod(0o600)
+        password_file = self.root / "password"
+        password_file.write_text("test-only-password\n", encoding="utf-8")
+        password_file.chmod(0o600)
+        environment = {
+            "BINI_TEST_KEYSTORE_DIR": str(keystore_dir),
+            "BINI_TEST_KEYSTORE_PASSWORD_FILE": str(password_file),
+        }
+        with mock.patch.object(rc3, "ROOT", repository), mock.patch.dict(os.environ, environment, clear=True):
+            arguments = rc3.signing_wallet_args(rc3.SEPOLIA_DEPLOYER_ACCOUNT_NAME)
+        self.assertEqual(arguments, ["--keystore", str(keystore.resolve()), "--password-file", str(password_file.resolve())])
+        self.assertNotIn("--account", arguments)
+
+    def test_external_keystore_signing_fails_closed_without_private_password_file(self):
+        repository = self.root / "repo"
+        repository.mkdir()
+        keystore_dir = self.root / "keys"
+        keystore_dir.mkdir(mode=0o700)
+        keystore = keystore_dir / rc3.SEPOLIA_DEPLOYER_ACCOUNT_NAME
+        keystore.write_text("{}\n", encoding="utf-8")
+        keystore.chmod(0o600)
+        environment = {"BINI_TEST_KEYSTORE_DIR": str(keystore_dir)}
+        with mock.patch.object(rc3, "ROOT", repository), mock.patch.dict(os.environ, environment, clear=True), self.assertRaises(rc3.RC3Error):
+            rc3.signing_wallet_args(rc3.SEPOLIA_DEPLOYER_ACCOUNT_NAME)
+
+        password_file = self.root / "password"
+        password_file.write_text("test-only-password\n", encoding="utf-8")
+        password_file.chmod(0o644)
+        environment["BINI_TEST_KEYSTORE_PASSWORD_FILE"] = str(password_file)
+        with mock.patch.object(rc3, "ROOT", repository), mock.patch.dict(os.environ, environment, clear=True), self.assertRaises(rc3.RC3Error):
+            rc3.signing_wallet_args(rc3.SEPOLIA_DEPLOYER_ACCOUNT_NAME)
+
     def test_evidence_export_refuses_external_file_symlink(self):
         repository = self.root / "repo"
         source = repository / "artifacts" / "sepolia" / "bootstrap"

@@ -1091,7 +1091,7 @@ def command_deploy(args: argparse.Namespace) -> None:
             account = os.environ.get("DEPLOYER_ACCOUNT")
             if not account:
                 raise ReleaseError("BROADCAST requires DEPLOYER_ACCOUNT pointing to an encrypted Foundry keystore")
-            command.extend(["--broadcast", "--account", account])
+            command.extend(["--broadcast", *rc3_automation.signing_wallet_args(account)])
     elif context.mode == "SAFE_PROPOSAL":
         raise ReleaseError("deployment is not a Safe-owned operation; use SIMULATE or separately authorized BROADCAST")
     run(command, env=env, capture=False)
