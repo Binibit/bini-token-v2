@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-safe-topology.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "network", "chainId", "sepoliaRehearsalOnly", "safeVersion", "singleton", "proxyFactory", "multiSend", "singletonRuntimeCodeHash", "proxyFactoryRuntimeCodeHash", "multiSendRuntimeCodeHash", "safeProxyRuntimeCodeHash", "owners", "threshold", "safes", "deploymentBlockStart", "deploymentBlockEnd", "broadcastReceipt", "sourceCommit", "createdAt"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"}, "network": {"type": "string"}, "chainId": {"type": "integer"},
+    "sepoliaRehearsalOnly": {"const": true}, "safeVersion": {"const": "1.4.1"},
+    "singleton": {"$ref": "#/$defs/address"}, "proxyFactory": {"$ref": "#/$defs/address"}, "multiSend": {"$ref": "#/$defs/address"},
+    "singletonRuntimeCodeHash": {"$ref": "#/$defs/hash"}, "proxyFactoryRuntimeCodeHash": {"$ref": "#/$defs/hash"},
+    "multiSendRuntimeCodeHash": {"$ref": "#/$defs/hash"}, "safeProxyRuntimeCodeHash": {"$ref": "#/$defs/hash"},
+    "owners": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/address"}},
+    "threshold": {"const": 2}, "safes": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/safe"}},
+    "deploymentBlockStart": {"type": "integer"}, "deploymentBlockEnd": {"type": "integer"}, "broadcastReceipt": {"type": "string"},
+    "sourceCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "createdAt": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "address": {"type": "string", "pattern": "^0x(?!0{40}$)[0-9a-fA-F]{40}$"}, "hash": {"type": "string", "pattern": "^0x[0-9a-fA-F]{64}$"},
+    "safe": {"type": "object", "additionalProperties": false, "required": ["purpose", "address", "creationTransaction"], "properties": {"purpose": {"type": "string"}, "address": {"$ref": "#/$defs/address"}, "creationTransaction": {"$ref": "#/$defs/hash"}}}
+  }
+}

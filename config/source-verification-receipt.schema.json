@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-source-verification-receipt.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "network", "chainId", "deployment", "results", "verifiedAt"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "network": {"const": "sepolia"},
+    "chainId": {"const": 11155111},
+    "deployment": {"type": "string"},
+    "results": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "address", "contract", "status", "response"],
+        "properties": {
+          "kind": {"type": "string"},
+          "address": {"type": "string"},
+          "contract": {"type": "string"},
+          "status": {"const": "VERIFIED"},
+          "response": {"type": "string"}
+        }
+      }
+    },
+    "verifiedAt": {"type": "string"}
+  }
+}

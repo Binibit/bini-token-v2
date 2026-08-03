@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://binibit.com/schemas/bini-v2-safe-execution-receipt.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "network", "chainId", "safe", "safeTxHash", "nonce", "transactionHash", "blockNumber", "status", "signers", "transaction", "rawReceipt", "verifiedAt"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"}, "network": {"type": "string"}, "chainId": {"type": "integer"},
+    "safe": {"$ref": "#/$defs/address"}, "safeTxHash": {"$ref": "#/$defs/hash"}, "nonce": {"type": "integer", "minimum": 0},
+    "transactionHash": {"$ref": "#/$defs/hash"}, "blockNumber": {"type": "integer", "minimum": 0}, "status": {"const": "EXECUTED"},
+    "signers": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/address"}},
+    "transaction": {"$ref": "#/$defs/transaction"}, "rawReceipt": {"$ref": "#/$defs/rawReceipt"},
+    "verifiedAt": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "address": {"type": "string", "pattern": "^0x(?!0{40}$)[0-9a-fA-F]{40}$"},
+    "zeroAddressAllowed": {"type": "string", "pattern": "^0x[0-9a-fA-F]{40}$"},
+    "hash": {"type": "string", "pattern": "^0x[0-9a-fA-F]{64}$"},
+    "uint": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "string", "pattern": "^(0x[0-9a-fA-F]+|[0-9]+)$"}]},
+    "transaction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["to", "value", "data", "operation", "safeTxGas", "baseGas", "gasPrice", "gasToken", "refundReceiver", "nonce"],
+      "properties": {
+        "to": {"$ref": "#/$defs/address"}, "value": {"$ref": "#/$defs/uint"}, "data": {"type": "string", "pattern": "^0x([0-9a-fA-F]{2})*$"},
+        "operation": {"enum": [0, 1]}, "safeTxGas": {"$ref": "#/$defs/uint"}, "baseGas": {"$ref": "#/$defs/uint"},
+        "gasPrice": {"$ref": "#/$defs/uint"}, "gasToken": {"$ref": "#/$defs/zeroAddressAllowed"},
+        "refundReceiver": {"$ref": "#/$defs/zeroAddressAllowed"}, "nonce": {"$ref": "#/$defs/uint"}
+      }
+    },
+    "rawReceipt": {
+      "type": "object", "required": ["transactionHash", "to", "status", "blockNumber", "logs"],
+      "properties": {"transactionHash": {"$ref": "#/$defs/hash"}, "to": {"$ref": "#/$defs/address"}, "status": {"$ref": "#/$defs/uint"}, "blockNumber": {"$ref": "#/$defs/uint"}, "logs": {"type": "array"}}
+    }
+  }
+}

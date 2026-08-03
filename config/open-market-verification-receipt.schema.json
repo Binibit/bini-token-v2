@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://binibit.com/schemas/bini-v2-open-market-verification-receipt.json",
+  "type": "object", "additionalProperties": false, "required": ["schemaVersion", "network", "chainId", "token", "operationId", "marketState", "irreversible", "replayRejected", "totalSupplyRaw", "pauseIndependent", "verifiedAt"],
+  "properties": {"schemaVersion": {"const": "1.0"}, "network": {"type": "string"}, "chainId": {"type": "integer"}, "token": {"type": "string"}, "operationId": {"type": "string"}, "marketState": {"const": "OPEN_MARKET"}, "irreversible": {"const": true}, "replayRejected": {"const": true}, "totalSupplyRaw": {"type": "string"}, "pauseIndependent": {"const": true}, "verifiedAt": {"type": "string"}}
+}

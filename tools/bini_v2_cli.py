@@ -17,6 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+# Keep the stable entrypoint importable through importlib-based unit tests as
+# well as executable directly from tools/.
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+import rc3_automation
+
 ROOT = Path(__file__).resolve().parents[1]
 TOTAL_SUPPLY_RAW = 1_000_000_000 * 10**18
 V1_TO_V2_SCALE = 1_000_000
@@ -654,7 +661,7 @@ def check_bytecode_hashes(config: dict[str, Any]) -> None:
 
 def dependency_shas() -> dict[str, str]:
     result = {}
-    for name in ("openzeppelin-contracts", "openzeppelin-contracts-upgradeable", "forge-std"):
+    for name in ("openzeppelin-contracts", "openzeppelin-contracts-upgradeable", "forge-std", "safe-smart-account"):
         result[name] = run(["git", "-C", str(ROOT / "lib" / name), "rev-parse", "HEAD"])
     return result
 
@@ -738,13 +745,74 @@ def manifest_from_broadcast(context: Context, evidence: dict[str, Any]) -> dict[
     return manifest
 
 
-def verify_recorded_deployment(context: Context, deployment: dict[str, Any]) -> None:
+def manifest_from_token_broadcast(context: Context, evidence: dict[str, Any], timelock: str) -> dict[str, Any]:
+    receipt_path = ROOT / "broadcast" / "DeployBiniTokenV2.s.sol" / str(context.chain_id) / "run-latest.json"
+    receipt = load_json(receipt_path)
+    transactions = receipt.get("transactions")
+    receipts = receipt.get("receipts")
+    if not isinstance(transactions, list) or not isinstance(receipts, list) or not receipts:
+        raise ReleaseError(f"incomplete Foundry broadcast receipt: {receipt_path}")
+    addresses: dict[str, str] = {"timelock": require_address(timelock, "existing Timelock")}
+    transaction_hashes: list[str] = []
+    for transaction in transactions:
+        if not isinstance(transaction, dict):
+            continue
+        tx_hash = transaction.get("hash")
+        if isinstance(tx_hash, str) and tx_hash not in transaction_hashes:
+            transaction_hashes.append(tx_hash)
+        name = transaction.get("contractName")
+        address = transaction.get("contractAddress")
+        if name == "BiniTokenV2" and isinstance(address, str):
+            addresses["implementation"] = address
+        elif name == "ERC1967Proxy" and isinstance(address, str):
+            addresses["proxy"] = address
+    if set(addresses) != {"implementation", "proxy", "timelock"}:
+        raise ReleaseError(f"could not recover token deployment addresses from {receipt_path}: {addresses}")
+    block_values = [receipt_int(item.get("blockNumber"), "receipt blockNumber") for item in receipts if isinstance(item, dict)]
+    block_number = max(block_values)
+    block = load_json_from_output(run(["cast", "block", str(block_number), "--json", "--rpc-url", context.rpc_url]), "confirmed deployment block")
+    block_timestamp = receipt_int(block.get("timestamp"), "deployment block timestamp")
+    abi = run(["forge", "inspect", "BiniTokenV2", "abi", "--json"])
+    storage = run(["forge", "inspect", "BiniTokenV2", "storageLayout", "--json"])
+    manifest = {
+        "chainId": context.chain_id,
+        "network": context.network,
+        "deploymentTimestamp": dt.datetime.fromtimestamp(block_timestamp, dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "deploymentBlock": block_number,
+        "deployer": require_address(os.environ.get("DEPLOYER_ADDRESS"), "DEPLOYER_ADDRESS"),
+        **addresses,
+        "safes": {key: value for key, value in context.config.items() if key.endswith("Safe")},
+        "transactionHashes": transaction_hashes,
+        "compilerVersion": "0.8.24",
+        "foundryVersion": evidence["foundryVersion"],
+        "openzeppelinDependencyShas": dependency_shas(),
+        "creationBytecodeHash": inspect_hash("BiniTokenV2", "bytecode"),
+        "runtimeBytecodeHash": runtime_code_hash(context, addresses["implementation"], "token implementation"),
+        "buildRuntimeBytecodeHash": inspect_hash("BiniTokenV2", "deployedBytecode"),
+        "abiHash": run(["cast", "keccak", abi]),
+        "storageLayoutHash": run(["cast", "keccak", storage]),
+        "gitCommit": evidence["gitCommit"],
+        "workingTreeStatus": "clean",
+        "broadcastReceipt": str(receipt_path.relative_to(ROOT)),
+        "existingTimelock": True,
+    }
+    verify_recorded_deployment(context, manifest)
+    return manifest
+
+
+def verify_recorded_deployment(
+    context: Context, deployment: dict[str, Any], *, expected_market_open: bool = False
+) -> None:
+    if deployment.get("gitCommit") != run(["git", "rev-parse", "HEAD"]):
+        raise ReleaseError("recorded deployment Git commit does not match current HEAD")
     for key in ("implementation", "proxy", "timelock"):
         address = require_address(deployment.get(key), f"deployment.{key}")
         if run(["cast", "code", address, "--rpc-url", context.rpc_url]) in ("", "0x"):
             raise ReleaseError(f"recorded deployment has no code at {key}: {address}")
-    if call(context, deployment["proxy"], "marketOpen()(bool)").lower() != "false":
-        raise ReleaseError("recorded deployment is not in PRE_MARKET")
+    actual_market_open = call(context, deployment["proxy"], "marketOpen()(bool)").lower() == "true"
+    if actual_market_open != expected_market_open:
+        expected = "OPEN_MARKET" if expected_market_open else "PRE_MARKET"
+        raise ReleaseError(f"recorded deployment is not in {expected}")
     if strict_int(call(context, deployment["proxy"], "totalSupply()(uint256)"), "total supply") != TOTAL_SUPPLY_RAW:
         raise ReleaseError("recorded deployment has incorrect total supply")
     if call(context, deployment["proxy"], "defaultAdmin()(address)").lower() != deployment["timelock"].lower():
@@ -804,7 +872,12 @@ def preflight(context: Context, *, require_rpc: bool) -> dict[str, Any]:
         if shutil.which(executable) is None:
             raise ReleaseError(f"required executable not found: {executable}")
     status = run(["git", "status", "--porcelain"])
-    if status:
+    allow_dirty_local = (
+        context.network in {"anvil", "anvil-rc3a", "anvil-release"}
+        and os.environ.get("BINI_RC3A_LOCAL_REHEARSAL") == "1"
+        and os.environ.get("BINI_RC3A_ALLOW_DIRTY_LOCAL") == "1"
+    )
+    if status and not allow_dirty_local:
         raise ReleaseError(f"Git working tree is dirty:\n{status}")
     head = run(["git", "rev-parse", "HEAD"])
     expected = os.environ.get("EXPECTED_GIT_COMMIT") or context.config.get("expectedGitCommit")
@@ -979,28 +1052,46 @@ def command_deploy(args: argparse.Namespace) -> None:
             verify_recorded_deployment(context, deployment)
         print(json.dumps({"status": "ALREADY_RECORDED", "deployment": deployment}, indent=2))
         return
+    existing_timelock = context.config.get("timelockAddress")
     if context.mode == "PLAN":
         validate_config(context)
-        print(json.dumps({"mode": "PLAN", "network": context.network, "stage": "DEPLOY", "config": str(context.config_path)}, indent=2))
+        print(json.dumps({"mode": "PLAN", "network": context.network, "stage": "DEPLOY", "config": str(context.config_path), "existingTimelock": existing_timelock}, indent=2))
         return
     evidence = preflight(context, require_rpc=True)
     env = os.environ.copy()
-    mapping = {
-        "BINI_V2_EXPECTED_CHAIN_ID": context.chain_id,
-        "BINI_V2_TIMELOCK_MIN_DELAY": context.config["timelockMinDelay"],
-        "BINI_V2_TIMELOCK_PROPOSER": context.config["timelockProposerSafe"],
-        "BINI_V2_TIMELOCK_EXECUTOR": context.config["timelockExecutorSafe"],
-        "BINI_V2_EMERGENCY_PAUSER_SAFE": context.config["emergencyPauserSafe"],
-        "BINI_V2_GENESIS_DISTRIBUTION_SAFE": context.config["genesisDistributionSafe"],
-        "BINI_V2_ADMIN_TRANSFER_DELAY": context.config["adminTransferDelay"],
-    }
+    if existing_timelock:
+        existing_timelock = require_address(existing_timelock, "config.timelockAddress")
+        check_contract_code(context, existing_timelock, "existing Timelock")
+        mapping = {
+            "EXPECTED_CHAIN_ID": context.chain_id,
+            "ADMIN_TIMELOCK": existing_timelock,
+            "EMERGENCY_PAUSER_SAFE": context.config["emergencyPauserSafe"],
+            "GENESIS_DISTRIBUTION_SAFE": context.config["genesisDistributionSafe"],
+            "ADMIN_TRANSFER_DELAY": context.config["adminTransferDelay"],
+        }
+        script_target = "script/DeployBiniTokenV2.s.sol:DeployBiniTokenV2"
+    else:
+        mapping = {
+            "BINI_V2_EXPECTED_CHAIN_ID": context.chain_id,
+            "BINI_V2_TIMELOCK_MIN_DELAY": context.config["timelockMinDelay"],
+            "BINI_V2_TIMELOCK_PROPOSER": context.config["timelockProposerSafe"],
+            "BINI_V2_TIMELOCK_EXECUTOR": context.config["timelockExecutorSafe"],
+            "BINI_V2_EMERGENCY_PAUSER_SAFE": context.config["emergencyPauserSafe"],
+            "BINI_V2_GENESIS_DISTRIBUTION_SAFE": context.config["genesisDistributionSafe"],
+            "BINI_V2_ADMIN_TRANSFER_DELAY": context.config["adminTransferDelay"],
+        }
+        script_target = "script/DeployBiniV2.s.sol:DeployBiniV2"
     env.update({key: str(value) for key, value in mapping.items()})
-    command = ["forge", "script", "script/DeployBiniV2.s.sol:DeployBiniV2", "--rpc-url", context.rpc_url, "-vvvv"]
+    command = ["forge", "script", script_target, "--rpc-url", context.rpc_url, "-vvvv"]
     if context.mode == "BROADCAST":
-        account = os.environ.get("DEPLOYER_ACCOUNT")
-        if not account:
-            raise ReleaseError("BROADCAST requires DEPLOYER_ACCOUNT pointing to an encrypted Foundry keystore")
-        command.extend(["--broadcast", "--account", account])
+        if context.network in {"anvil", "anvil-rc3a", "anvil-release"} and os.environ.get("BINI_RC3A_LOCAL_REHEARSAL") == "1":
+            sender = require_address(os.environ.get("DEPLOYER_ADDRESS"), "DEPLOYER_ADDRESS")
+            command.extend(["--broadcast", "--unlocked", "--sender", sender])
+        else:
+            account = os.environ.get("DEPLOYER_ACCOUNT")
+            if not account:
+                raise ReleaseError("BROADCAST requires DEPLOYER_ACCOUNT pointing to an encrypted Foundry keystore")
+            command.extend(["--broadcast", *rc3_automation.signing_wallet_args(account)])
     elif context.mode == "SAFE_PROPOSAL":
         raise ReleaseError("deployment is not a Safe-owned operation; use SIMULATE or separately authorized BROADCAST")
     run(command, env=env, capture=False)
@@ -1009,7 +1100,12 @@ def command_deploy(args: argparse.Namespace) -> None:
     if context.mode == "SIMULATE":
         checked_write(artifact_path("deployments", context.network, f"simulation-{int(dt.datetime.now().timestamp())}.json"), evidence)
     else:
-        checked_write(deployment_file(context.network), manifest_from_broadcast(context, evidence))
+        manifest = (
+            manifest_from_token_broadcast(context, evidence, existing_timelock)
+            if existing_timelock
+            else manifest_from_broadcast(context, evidence)
+        )
+        checked_write(deployment_file(context.network), manifest)
 
 
 def command_configure_market(args: argparse.Namespace) -> None:
@@ -1177,6 +1273,15 @@ def command_distribute(args: argparse.Namespace) -> None:
         plan["preState"] = distribution_state
         plan["simulation"] = "calldata validated; execute the generated Safe batch in a Sepolia fork/Safe simulation"
     proposal = safe_batch(context.chain_id, context.config["genesisDistributionSafe"], f"BINI V2 distribution {ledger['ledgerVersion']}", transactions)
+    if context.config.get("safeMultiSend") and context.config.get("safeMultiSendRuntimeCodeHash"):
+        proposal["rc3"] = {
+            "schemaVersion": "1.0",
+            "allowDelegateCall": True,
+            "multiSend": require_address(context.config["safeMultiSend"], "config.safeMultiSend"),
+            "multiSendRuntimeCodeHash": require_hash(
+                context.config["safeMultiSendRuntimeCodeHash"], "config.safeMultiSendRuntimeCodeHash"
+            ),
+        }
     package = {"plan": plan, "safeTransactionBuilder": proposal}
     output = artifact_path("distributions", context.network, f"distribution-{ledger['ledgerVersion']}.json")
     if output.exists():
@@ -1451,7 +1556,9 @@ def command_verify(args: argparse.Namespace) -> None:
     deployment = load_deployment(context.network)
     preflight_evidence = preflight(context, require_rpc=True)
     token = deployment["proxy"]
-    verify_recorded_deployment(context, deployment)
+    expected_market_state = getattr(args, "expected_market_state", "PRE_MARKET")
+    expected_open = expected_market_state == "OPEN_MARKET"
+    verify_recorded_deployment(context, deployment, expected_market_open=expected_open)
     checks = {
         "name": call(context, token, "name()(string)"),
         "symbol": call(context, token, "symbol()(string)"),
@@ -1465,8 +1572,8 @@ def command_verify(args: argparse.Namespace) -> None:
         raise ReleaseError("token decimals mismatch")
     if strict_int(checks["totalSupply"], "total supply") != TOTAL_SUPPLY_RAW:
         raise ReleaseError("token supply mismatch")
-    if checks["marketOpen"].lower() != "false":
-        raise ReleaseError("PRE_MARKET is not active")
+    if (checks["marketOpen"].lower() == "true") != expected_open:
+        raise ReleaseError(f"expected market state {expected_market_state} is not active")
     distribution = phase1_distribution_state(context, token, allocations)
     if distribution["status"] == "INCONSISTENT":
         raise ReleaseError("Phase 1 balances are partial or inconsistent")
@@ -1527,6 +1634,9 @@ def command_verify_migration(args: argparse.Namespace) -> None:
 
 
 def command_status(args: argparse.Namespace) -> None:
+    if getattr(args, "full", False):
+        rc3_automation.command_full_status(args)
+        return
     context = load_context(args)
     result: dict[str, Any] = {"network": context.network, "mode": context.mode, "artifacts": {}}
     for kind in ("deployments", "distributions", "migrations", "verification"):
@@ -1576,11 +1686,15 @@ def parser() -> argparse.ArgumentParser:
     migrate.set_defaults(handler=command_migrate)
     verify = common("verify")
     verify.add_argument("--ledger", default="data/bini-v2-supply-ledger.json")
+    verify.add_argument("--expected-market-state", choices=("PRE_MARKET", "OPEN_MARKET"), default="PRE_MARKET")
     verify.set_defaults(handler=command_verify)
     verify_migration = common("verify-migration")
     verify_migration.add_argument("--migration-config")
     verify_migration.set_defaults(handler=command_verify_migration)
-    common("status").set_defaults(handler=command_status)
+    status = common("status")
+    status.add_argument("--full", action="store_true")
+    status.set_defaults(handler=command_status)
+    rc3_automation.add_subcommands(commands)
     return root
 
 
@@ -1589,7 +1703,7 @@ def main() -> int:
         args = parser().parse_args()
         args.handler(args)
         return 0
-    except ReleaseError as exc:
+    except (ReleaseError, rc3_automation.RC3Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

@@ -5,6 +5,7 @@ artifacts/deployments/
 artifacts/distributions/
 artifacts/migrations/
 artifacts/verification/
+artifacts/anvil-rc3a/
 .env
 node_modules/
 __pycache__/
