@@ -1032,7 +1032,9 @@ def phase1_distribution_state(
 def command_preflight(args: argparse.Namespace) -> None:
     context = load_context(args)
     evidence = preflight(context, require_rpc=True)
-    ledger_path = ROOT / "data" / "bini-v2-supply-ledger.json"
+    ledger_path = Path(args.ledger)
+    if not ledger_path.is_absolute():
+        ledger_path = ROOT / ledger_path
     validate_ledger(ledger_path, context)
     if evidence["deployer"].lower() != context.config["deployerAddress"].lower():
         raise ReleaseError("DEPLOYER_ADDRESS does not match config.deployerAddress")
@@ -1664,7 +1666,9 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--mode", choices=MODES)
         return command
 
-    common("preflight").set_defaults(handler=command_preflight)
+    preflight_command = common("preflight")
+    preflight_command.add_argument("--ledger", default="data/bini-v2-supply-ledger.json")
+    preflight_command.set_defaults(handler=command_preflight)
     common("deploy").set_defaults(handler=command_deploy)
     configure_market = common("configure-market")
     configure_market.add_argument("--policy")
