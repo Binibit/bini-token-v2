@@ -803,6 +803,8 @@ def manifest_from_token_broadcast(context: Context, evidence: dict[str, Any], ti
 def verify_recorded_deployment(
     context: Context, deployment: dict[str, Any], *, expected_market_open: bool = False
 ) -> None:
+    if deployment.get("gitCommit") != run(["git", "rev-parse", "HEAD"]):
+        raise ReleaseError("recorded deployment Git commit does not match current HEAD")
     for key in ("implementation", "proxy", "timelock"):
         address = require_address(deployment.get(key), f"deployment.{key}")
         if run(["cast", "code", address, "--rpc-url", context.rpc_url]) in ("", "0x"):

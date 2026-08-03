@@ -45,6 +45,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           pipx install slither-analyzer==0.11.4
+          python3 -m pip install --user -r requirements-release.txt
 
       - name: Prepare release evidence
         run: mkdir -p "$BINI_EVIDENCE_DIR"
@@ -107,6 +108,9 @@ jobs:
           config/*.json
           data/*.json
           policy/*.json
+
+      - name: Validate RC3 receipt schemas
+        run: python3 tools/validate-rc3-schemas.py artifacts/anvil-rc3a
 
       - name: Seal exact-SHA release evidence
         run: tools/finalize-ci-evidence.sh

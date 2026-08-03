@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import os
 import sys
@@ -40,8 +41,13 @@ class RC3AutomationTest(unittest.TestCase):
             "chainId": rc3.SEPOLIA_CHAIN_ID,
             "sepoliaRehearsalOnly": True,
             "accounts": [
-                {"accountName": name, "address": ADDR[index]}
-                for index, name in enumerate(rc3.TEST_ACCOUNT_NAMES)
+                {
+                    "accountName": name,
+                    "label": rc3.TEST_ACCOUNT_METADATA[name][0],
+                    "role": rc3.TEST_ACCOUNT_METADATA[name][1],
+                    "address": ADDR[index],
+                }
+                for index, name in enumerate(rc3.ALL_TEST_ACCOUNT_NAMES)
             ],
             "createdAt": "2026-08-03T00:00:00+00:00",
         }
@@ -56,6 +62,10 @@ class RC3AutomationTest(unittest.TestCase):
             "singleton": ADDR[0],
             "proxyFactory": ADDR[1],
             "multiSend": ADDR[2],
+            "singletonRuntimeCodeHash": HASH,
+            "proxyFactoryRuntimeCodeHash": HASH,
+            "multiSendRuntimeCodeHash": HASH,
+            "safeProxyRuntimeCodeHash": HASH,
             "owners": ADDR[3:6],
             "threshold": 2,
             "safes": [
@@ -121,9 +131,9 @@ class RC3AutomationTest(unittest.TestCase):
     def test_missing_signer_funding_is_detected(self):
         manifest = self.write_json("accounts.json", self.accounts_manifest())
         args = Namespace(network="sepolia", manifest=str(manifest), keystore_dir=str(self.root / "keys"))
-        with mock.patch.object(rc3, "test_keystore_dir", return_value=self.root / "keys"), mock.patch.object(
+        with mock.patch.dict(os.environ, {"BINI_REQUIRED_FUNDED_ACCOUNTS": rc3.SEPOLIA_DEPLOYER_ACCOUNT_NAME}), mock.patch.object(rc3, "test_keystore_dir", return_value=self.root / "keys"), mock.patch.object(
             rc3, "find_account_file", return_value=self.root / "key"
-        ), mock.patch.object(rc3, "read_public_keystore_address", return_value=ADDR[0]), mock.patch.object(
+        ), mock.patch.object(rc3, "read_public_keystore_address", side_effect=ADDR[:4]), mock.patch.object(
             rc3, "rpc_url", return_value="rpc"
         ), mock.patch.object(rc3, "run", return_value="0"), self.assertRaises(rc3.RC3Error):
             rc3.command_test_accounts_verify(args)
@@ -167,6 +177,22 @@ class RC3AutomationTest(unittest.TestCase):
         with self.assertRaises(rc3.RC3Error):
             rc3.normalize_safe_transaction(package, 0)
 
+    def test_multisend_runtime_pin_is_mandatory_on_every_path(self):
+        package = self.safe_package()
+        package["transactions"].append(dict(package["transactions"][0], to=ADDR[2]))
+        package["rc3"] = {
+            "schemaVersion": "1.0",
+            "allowDelegateCall": True,
+            "multiSend": ADDR[2],
+            "multiSendRuntimeCodeHash": HASH,
+        }
+        manifest_path = self.root / "artifacts" / "sepolia" / "infrastructure" / "safes.json"
+        manifest_path.parent.mkdir(parents=True)
+        manifest_path.write_text(json.dumps(self.safes_manifest()), encoding="utf-8")
+        with mock.patch.object(rc3, "ROOT", self.root), mock.patch.object(rc3, "code_hash", return_value="0x" + "2" * 64):
+            with self.assertRaises(rc3.RC3Error):
+                rc3.validate_multisend_target(package, "sepolia", "rpc")
+
     def signature_bundle(self):
         transaction = {
             "to": ADDR[1], "value": "0", "data": "0x", "operation": 0, "safeTxGas": "0",
@@ -194,6 +220,45 @@ class RC3AutomationTest(unittest.TestCase):
         with self.assertRaises(rc3.RC3Error):
             rc3.validate_signature_bundle(bundle, "sepolia")
 
+    def execution_receipt(self):
+        bundle = self.signature_bundle()
+        return {
+            "schemaVersion": "1.0", "network": "sepolia", "chainId": rc3.SEPOLIA_CHAIN_ID,
+            "safe": bundle["safe"], "safeTxHash": bundle["safeTxHash"], "nonce": 0,
+            "transactionHash": "0x" + "2" * 64, "blockNumber": 10, "status": "EXECUTED",
+            "signers": [ADDR[3], ADDR[4]], "transaction": bundle["transaction"],
+            "rawReceipt": {"transactionHash": "0x" + "2" * 64, "to": bundle["safe"], "status": "0x1", "blockNumber": "0xa", "logs": []},
+            "verifiedAt": "2026-08-03T00:00:00+00:00",
+        }
+
+    def test_safe_receipt_requires_matching_execution_success_event(self):
+        receipt = self.execution_receipt()
+        chain_receipt = {
+            "transactionHash": receipt["transactionHash"], "to": receipt["safe"], "status": "0x1",
+            "blockNumber": "0xa", "logs": [],
+        }
+        with mock.patch.object(rc3, "safe_tx_hash", return_value=HASH), mock.patch.object(
+            rc3, "run_json", return_value=chain_receipt
+        ), mock.patch.object(rc3, "run", return_value="0x" + "9" * 64):
+            with self.assertRaises(rc3.RC3Error):
+                rc3.validate_safe_execution_receipt(receipt, "sepolia", "rpc")
+
+    def test_idempotency_does_not_trust_a_forged_filename(self):
+        package = self.safe_package()
+        bundle = self.signature_bundle()
+        receipt_dir = self.root / "artifacts" / "sepolia" / "safe-tx" / "receipts"
+        receipt_dir.mkdir(parents=True)
+        path = receipt_dir / f"safe-execution-{HASH[2:]}.json"
+        path.write_text("{}", encoding="utf-8")
+        with mock.patch.object(rc3, "ROOT", self.root), mock.patch.object(rc3, "load_safe_package", return_value=package), mock.patch.object(
+            rc3, "safe_package_network", return_value="sepolia"
+        ), mock.patch.object(rc3, "ensure_write_network"), mock.patch.object(rc3, "load_json", return_value=bundle), mock.patch.object(
+            rc3, "validate_signature_bundle"
+        ), mock.patch.object(rc3, "rpc_url", return_value="rpc"), mock.patch.object(rc3, "validate_multisend_target"), mock.patch.object(
+            rc3, "cast_call", return_value="1"
+        ), mock.patch.object(rc3, "validate_safe_execution_receipt", side_effect=rc3.RC3Error("forged")):
+            with self.assertRaises(rc3.RC3Error):
+                rc3.command_safe_tx_execute(Namespace(package="package", signatures="bundle", network="sepolia"))
     def test_operation_rejects_modified_operation_id(self):
         operation = {
             "schemaVersion": "1.0", "network": "sepolia", "chainId": rc3.SEPOLIA_CHAIN_ID,
@@ -206,28 +271,70 @@ class RC3AutomationTest(unittest.TestCase):
             rc3.validate_timelock_operation(operation)
 
     def test_evidence_seal_detects_missing_category_commit_and_tampering(self):
-        evidence = self.root / "evidence"
-        evidence.mkdir()
-        payload = evidence / "payload.json"
+        seal_root = self.root / "rc3"
+        evidence = seal_root / "evidence"
+        payload = evidence / "chain-artifacts" / "sepolia" / "bootstrap" / "payload.json"
+        payload.parent.mkdir(parents=True)
         payload.write_text("{}\n", encoding="utf-8")
         manifest = {
             "schemaVersion": "1.0", "network": "sepolia", "chainId": rc3.SEPOLIA_CHAIN_ID,
             "sourceCommit": "a" * 40, "workingTreeClean": True, "files": [],
-            "requiredCategories": ["bootstrap"], "presentCategories": [], "createdAt": "now",
+            "requiredCategories": ["bootstrap"], "presentCategories": [], "createdAt": "2026-08-03T00:00:00+00:00",
         }
-        self.write_json("unused.json", {})
         (evidence / "RC3_EVIDENCE_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
-        with mock.patch.object(rc3, "run", return_value="a" * 40), self.assertRaises(rc3.RC3Error):
-            rc3.command_evidence_seal(Namespace(directory=str(evidence)))
+        with mock.patch.object(rc3, "ROOT", self.root), mock.patch.object(rc3, "run", return_value="a" * 40), self.assertRaises(rc3.RC3Error):
+            rc3.command_evidence_seal(Namespace(directory=str(seal_root)))
+        manifest["files"] = [{
+            "path": "chain-artifacts/sepolia/bootstrap/payload.json",
+            "sha256": hashlib.sha256(payload.read_bytes()).hexdigest(),
+            "size": payload.stat().st_size,
+        }]
         manifest["presentCategories"] = ["bootstrap"]
         (evidence / "RC3_EVIDENCE_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
-        with mock.patch.object(rc3, "run", return_value="b" * 40), self.assertRaises(rc3.RC3Error):
-            rc3.command_evidence_seal(Namespace(directory=str(evidence)))
-        with mock.patch.object(rc3, "run", return_value="a" * 40):
-            rc3.command_evidence_seal(Namespace(directory=str(evidence)))
+        with mock.patch.object(rc3, "ROOT", self.root), mock.patch.object(rc3, "run", return_value="b" * 40), self.assertRaises(rc3.RC3Error):
+            rc3.command_evidence_seal(Namespace(directory=str(seal_root)))
+        with mock.patch.object(rc3, "ROOT", self.root), mock.patch.object(rc3, "run", return_value="a" * 40):
+            rc3.command_evidence_seal(Namespace(directory=str(seal_root)))
         payload.write_text("tampered\n", encoding="utf-8")
-        with mock.patch.object(rc3, "run", return_value="a" * 40), self.assertRaises(rc3.RC3Error):
-            rc3.command_evidence_seal(Namespace(directory=str(evidence)))
+        with mock.patch.object(rc3, "ROOT", self.root), mock.patch.object(rc3, "run", return_value="a" * 40), self.assertRaises(rc3.RC3Error):
+            rc3.command_evidence_seal(Namespace(directory=str(seal_root)))
+
+    def test_keystore_symlink_into_repository_is_rejected(self):
+        repository = self.root / "repo"
+        repository.mkdir()
+        inside = repository / "keys"
+        inside.mkdir()
+        alias = self.root / "external-keys"
+        alias.symlink_to(inside, target_is_directory=True)
+        with mock.patch.object(rc3, "ROOT", repository), self.assertRaises(rc3.RC3Error):
+            rc3.test_keystore_dir(Namespace(keystore_dir=str(alias)))
+
+    def test_evidence_export_refuses_external_file_symlink(self):
+        repository = self.root / "repo"
+        source = repository / "artifacts" / "sepolia" / "bootstrap"
+        source.mkdir(parents=True)
+        secret = self.root / "secret.txt"
+        secret.write_text("sentinel", encoding="utf-8")
+        (source / "linked-secret.txt").symlink_to(secret)
+        with mock.patch.object(rc3, "ROOT", repository), self.assertRaises(rc3.RC3Error):
+            rc3.command_evidence_export(Namespace(network="sepolia", output=str(repository / "evidence")))
+
+    def test_explorer_key_is_not_passed_in_process_argv(self):
+        repository = self.root / "repo"
+        repository.mkdir()
+        deployment = repository / "deployment.json"
+        deployment.write_text(json.dumps({"chainId": rc3.SEPOLIA_CHAIN_ID, "implementation": ADDR[0], "gitCommit": "a" * 40}), encoding="utf-8")
+        commands = []
+
+        def capture(command, **_kwargs):
+            commands.append(command)
+            if command[:3] == ["git", "rev-parse", "HEAD"]:
+                return "a" * 40
+            return "verified"
+
+        with mock.patch.object(rc3, "ROOT", repository), mock.patch.dict(os.environ, {"ETHERSCAN_API_KEY": "SENSITIVE_SENTINEL"}), mock.patch.object(rc3, "run", side_effect=capture):
+            rc3.command_verify_source(Namespace(network="sepolia", deployment=str(deployment)))
+        self.assertFalse(any("SENSITIVE_SENTINEL" in command for command in commands))
 
 
 if __name__ == "__main__":

@@ -58,7 +58,7 @@ done
 GOVERNANCE="$RUN_DIR/governance.json"
 jq -n \
   --arg network "$NETWORK" \
-  --argjson owners "$(jq '.accounts' "$ACCOUNT_MANIFEST")" \
+  --argjson owners "$(jq '[.accounts[] | select(.role == "SAFE_OWNER") | {accountName,address}]' "$ACCOUNT_MANIFEST")" \
   --argjson purposes "$(jq '.safePurposes' config/governance.sepolia.json)" \
   '{network:$network,chainId:31337,sepoliaRehearsalOnly:true,safeVersion:"1.4.1",safeSaltBase:7000,owners:$owners,threshold:2,safePurposes:$purposes,safeInfrastructure:null,timelockMinimumDelaySeconds:2}' \
   >"$GOVERNANCE"
@@ -167,11 +167,15 @@ jq -n --arg network "$NETWORK" --arg v1 "$FIXTURE" --arg v2 "$TOKEN" --arg vault
   '{network:$network,phase:"PHASE_2",chainId:31337,illustrativeInputs:false,v1Token:$v1,v2Proxy:$v2,migrationVault:$vault,conversionFactor:"1000000",fundingReserveRaw:"15000000000000000000",holderManifestHash:$holderHash,expectedVaultCreationBytecodeHash:$vaultBytecodeHash,fundingSources:[{sourceAllocationId:"rewards-year-1",sourceTopLevelSafe:$s1,fundingRaw:"1000000000000000000"},{sourceAllocationId:"rewards-year-2-reserve",sourceTopLevelSafe:$s2,fundingRaw:"2000000000000000000"},{sourceAllocationId:"rewards-year-3-reserve",sourceTopLevelSafe:$s3,fundingRaw:"3000000000000000000"},{sourceAllocationId:"rewards-year-4-reserve",sourceTopLevelSafe:$s4,fundingRaw:"4000000000000000000"},{sourceAllocationId:"team-founders-reserve",sourceTopLevelSafe:$s5,fundingRaw:"5000000000000000000"}]}' >"$MIGRATION_CONFIG"
 
 FUNDING_PLAN="$(./bin/bini-v2 migration-fund plan --network "$NETWORK" --holders "$HOLDERS")"
-LAST_FUNDING_RECEIPT=""
+FUNDING_RECEIPTS=()
 while IFS= read -r package; do
-  LAST_FUNDING_RECEIPT="$(safe_execute "$package")"
+  FUNDING_RECEIPTS+=("$(safe_execute "$package")")
 done < <(jq -r '.fundingSources[].package' "$FUNDING_PLAN")
-./bin/bini-v2 migration-fund verify --network "$NETWORK" --receipt "$LAST_FUNDING_RECEIPT"
+FUNDING_VERIFY_ARGS=()
+for receipt in "${FUNDING_RECEIPTS[@]}"; do
+  FUNDING_VERIFY_ARGS+=(--receipt "$receipt")
+done
+./bin/bini-v2 migration-fund verify --network "$NETWORK" --plan "$FUNDING_PLAN" "${FUNDING_VERIFY_ARGS[@]}"
 
 MIGRATION_PLAN="$RUN_DIR/migration-plan.json"
 ./bin/bini-v2 migration-plan --network "$NETWORK" --config "$PHASE_CONFIG" --holders "$HOLDERS" --migration-config "$MIGRATION_CONFIG" --mode PLAN >"$MIGRATION_PLAN"

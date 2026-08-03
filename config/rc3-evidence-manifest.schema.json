@@ -6,26 +6,31 @@
   "required": ["schemaVersion", "network", "chainId", "sourceCommit", "workingTreeClean", "files", "requiredCategories", "presentCategories", "createdAt"],
   "properties": {
     "schemaVersion": {"const": "1.0"},
-    "network": {"type": "string"},
+    "network": {"enum": ["sepolia", "anvil", "anvil-rc3a", "anvil-release"]},
     "chainId": {"type": "integer"},
     "sourceCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-    "workingTreeClean": {"type": "boolean"},
+    "workingTreeClean": {"const": true},
     "files": {
       "type": "array",
       "minItems": 1,
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["path", "sha256", "size"],
         "properties": {
-          "path": {"type": "string"},
+          "path": {"type": "string", "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$"},
           "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "size": {"type": "integer", "minimum": 0}
         }
       }
     },
-    "requiredCategories": {"type": "array", "items": {"type": "string"}},
-    "presentCategories": {"type": "array", "items": {"type": "string"}},
-    "createdAt": {"type": "string"}
-  }
+    "requiredCategories": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "presentCategories": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "createdAt": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {"if": {"properties": {"network": {"const": "sepolia"}}}, "then": {"properties": {"chainId": {"const": 11155111}}}},
+    {"if": {"properties": {"network": {"enum": ["anvil", "anvil-rc3a", "anvil-release"]}}}, "then": {"properties": {"chainId": {"const": 31337}}}}
+  ]
 }
