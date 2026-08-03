@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-pre-market-behavior-receipt.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "network", "chainId", "token", "cases", "transactionHashes", "createdAt"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "network": {"type": "string"},
+    "chainId": {"type": "integer"},
+    "token": {"type": "string"},
+    "cases": {
+      "type": "array",
+      "minItems": 15,
+      "maxItems": 15,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "passed", "classification"],
+        "properties": {
+          "name": {"type": "string"},
+          "passed": {"const": true},
+          "classification": {"type": "string"}
+        }
+      }
+    },
+    "transactionHashes": {"type": "array", "items": {"type": "string"}},
+    "createdAt": {"type": "string"}
+  }
+}

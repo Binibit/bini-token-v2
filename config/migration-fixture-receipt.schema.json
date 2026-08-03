@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://binibit.com/schemas/bini-v2-migration-fixture-receipt.json",
+  "type": "object", "additionalProperties": false, "required": ["schemaVersion", "network", "chainId", "address", "deploymentTransaction", "deploymentBlock", "runtimeCodeHash", "broadcastReceipt", "sourceCommit", "createdAt", "fixture", "sepoliaOnly", "name", "decimals", "fixtureAdmin"],
+  "properties": {"schemaVersion": {"const": "1.0"}, "network": {"type": "string"}, "chainId": {"type": "integer"}, "address": {"type": "string"}, "deploymentTransaction": {"type": "string"}, "deploymentBlock": {"type": "integer"}, "runtimeCodeHash": {"type": "string"}, "broadcastReceipt": {"type": "string"}, "sourceCommit": {"type": "string"}, "createdAt": {"type": "string"}, "fixture": {"const": true}, "sepoliaOnly": {"const": true}, "name": {"const": "BINI V1 Test Fixture"}, "decimals": {"const": 12}, "fixtureAdmin": {"type": "string"}}
+}

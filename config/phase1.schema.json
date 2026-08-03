@@ -27,7 +27,10 @@
     "expectedTokenCreationBytecodeHash": {"$ref": "#/$defs/hash"},
     "minDeployerBalanceWei": {"type": "string", "pattern": "^[0-9]+$"},
     "timelockMinDelay": {"type": "integer", "minimum": 1},
+    "timelockAddress": {"$ref": "#/$defs/address"},
     "adminTransferDelay": {"type": "integer", "minimum": 0, "maximum": 281474976710655},
+    "safeMultiSend": {"$ref": "#/$defs/address"},
+    "safeMultiSendRuntimeCodeHash": {"$ref": "#/$defs/hash"},
     "timelockProposerSafe": {"$ref": "#/$defs/address"},
     "timelockExecutorSafe": {"$ref": "#/$defs/address"},
     "emergencyPauserSafe": {"$ref": "#/$defs/address"},
@@ -43,7 +46,7 @@
     "liquidityReserveSafe": {"$ref": "#/$defs/address"},
     "safeThresholds": {
       "type": "object",
-      "minProperties": 13,
+      "minProperties": 12,
       "propertyNames": {"pattern": "^0x[0-9a-fA-F]{40}$"},
       "additionalProperties": {"type": "integer", "minimum": 1}
     }

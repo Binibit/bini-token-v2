@@ -16,5 +16,11 @@
       "name": "v5.6.1",
       "rev": "7bf4727aacdbfaa0f36cbd664654d0c9e1dc52bf"
     }
+  },
+  "lib/safe-smart-account": {
+    "tag": {
+      "name": "v1.4.1",
+      "rev": "bf943f80fec5ac647159d26161446ac5d716a294"
+    }
   }
 }

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://binibit.com/schemas/bini-v2-timelock-execution-receipt.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "network", "chainId", "operationId", "scheduleReceipt", "executeReceipt", "finalState", "verifiedAt"],
+  "properties": {"schemaVersion": {"const": "1.0"}, "network": {"type": "string"}, "chainId": {"type": "integer"}, "operationId": {"type": "string", "pattern": "^0x[0-9a-fA-F]{64}$"}, "scheduleReceipt": {"type": "string"}, "cancelReceipt": {"type": "string"}, "executeReceipt": {"type": "string"}, "finalState": {"enum": ["CANCELLED", "DONE"]}, "verifiedAt": {"type": "string"}}
+}

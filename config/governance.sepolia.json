@@ -2,6 +2,38 @@
   "status": "INPUTS_REQUIRED",
   "network": "sepolia",
   "chainId": 11155111,
+  "sepoliaRehearsalOnly": true,
+  "safeVersion": "1.4.1",
+  "safeSaltBase": 3000000,
+  "owners": [
+    {"accountName": "bini-test-signer-1", "address": null},
+    {"accountName": "bini-test-signer-2", "address": null},
+    {"accountName": "bini-test-signer-3", "address": null}
+  ],
+  "threshold": 2,
+  "safePurposes": [
+    "GOVERNANCE_SAFE",
+    "SECURITY_SAFE",
+    "GENESIS_DISTRIBUTION_SAFE",
+    "REWARDS_Y1_SAFE",
+    "REWARDS_Y2_RESERVE_SAFE",
+    "REWARDS_Y3_RESERVE_SAFE",
+    "REWARDS_Y4_RESERVE_SAFE",
+    "TEAM_FOUNDERS_RESERVE_SAFE",
+    "MARKETING_OPERATIONS_SAFE",
+    "MARKETING_MILESTONE_RESERVE_SAFE",
+    "ECOSYSTEM_RESERVE_SAFE",
+    "LIQUIDITY_RESERVE_SAFE"
+  ],
+  "safeInfrastructure": {
+    "singleton": null,
+    "proxyFactory": null,
+    "multiSend": null,
+    "singletonRuntimeCodeHash": null,
+    "proxyFactoryRuntimeCodeHash": null,
+    "multiSendRuntimeCodeHash": null
+  },
+  "timelockMinimumDelaySeconds": 600,
   "ratified": false,
   "governanceSafe": {"address": null, "owners": [], "threshold": null},
   "securitySafe": {"address": null, "owners": [], "threshold": null},
@@ -24,7 +56,7 @@
     "executor": null,
     "canceller": null,
     "admin": "SELF_ADMINISTERED_AFTER_DEPLOYMENT",
-    "minimumDelaySeconds": 172800
+    "minimumDelaySeconds": 600
   },
   "deployer": {"keystoreAccount": "bini-deployer", "address": null, "funded": false, "residualProductionRoles": null},
   "operations": {"emergencyRecovery": null, "signerRotation": null},

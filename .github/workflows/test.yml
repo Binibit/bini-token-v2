@@ -52,6 +52,9 @@ jobs:
       - name: Run receipt-backed Anvil release rehearsal
         run: tools/test-release-anvil.sh 2>&1 | tee "$BINI_EVIDENCE_DIR/anvil-rehearsal.log"
 
+      - name: Run RC3A real-Safe lifecycle rehearsal
+        run: tools/test-rc3a-anvil.sh 2>&1 | tee "$BINI_EVIDENCE_DIR/rc3a-anvil-rehearsal.log"
+
       - name: Check formatting
         run: forge fmt --check
 

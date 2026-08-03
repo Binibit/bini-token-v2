@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://binibit.com/schemas/bini-v2-migration-funding-receipt.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "network", "chainId", "vault", "fundingSources", "totalRaw", "createdAt"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "network": {"type": "string"},
+    "chainId": {"type": "integer"},
+    "vault": {"type": "string"},
+    "fundingSources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceAllocationId", "sourceTopLevelSafe", "amountRaw", "package"],
+        "properties": {
+          "sourceAllocationId": {"type": "string"},
+          "sourceTopLevelSafe": {"type": "string"},
+          "amountRaw": {"type": "string"},
+          "package": {"type": "string"}
+        }
+      }
+    },
+    "totalRaw": {"type": "string"},
+    "createdAt": {"type": "string"}
+  }
+}

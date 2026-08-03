@@ -20,6 +20,9 @@ required=(
     fork-tests.log
     npm-audit.log
     release-artifacts.log
+    rc3a-anvil-rehearsal.log
+    rc3a/SHA256SUMS
+    rc3a/evidence/RC3_EVIDENCE_MANIFEST.json
     slither-report.json
     slither.log
     solidity-tests.log
@@ -51,6 +54,11 @@ compgen -G "$TARGET/anvil-release/*.json" >/dev/null || {
     echo "Anvil receipt evidence is missing" >&2
     exit 1
 }
+
+(
+    cd "$TARGET/rc3a"
+    shasum -a 256 -c SHA256SUMS >/dev/null
+)
 
 (
     cd "$TARGET"
