@@ -58,6 +58,26 @@ class ReleaseCliTest(unittest.TestCase):
         self.assertEqual(document["ledgerVersion"], "test-v1")
         self.assertEqual(len(allocations), 9)
 
+    def test_preflight_uses_explicit_runtime_ledger(self):
+        runtime_ledger = self.write_json("runtime-ledger.json", self.ledger())
+        context = cli.Context(
+            "sepolia",
+            "SIMULATE",
+            self.root / "config.json",
+            {"deployerAddress": ADDRESS_1, "deployerAccount": "deployer"},
+        )
+        args = mock.Mock(ledger=str(runtime_ledger))
+        evidence = {"deployer": ADDRESS_1}
+        with (
+            mock.patch.object(cli, "load_context", return_value=context),
+            mock.patch.object(cli, "preflight", return_value=evidence),
+            mock.patch.object(cli, "validate_ledger") as validate_ledger,
+            mock.patch.object(cli, "canonical_hash", return_value="sha256:test"),
+            mock.patch.dict(os.environ, {}, clear=True),
+        ):
+            cli.command_preflight(args)
+        validate_ledger.assert_called_once_with(runtime_ledger, context)
+
     def test_ledger_below_or_above_supply_is_rejected(self):
         for delta in (-1, 1):
             ledger = self.ledger()
