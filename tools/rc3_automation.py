@@ -2217,7 +2217,7 @@ def command_evidence_export(args: argparse.Namespace) -> None:
     present: set[str] = set()
     for item in files:
         path = Path(item["path"])
-        if len(path.parts) < 3 or path.parts[0] != "chain-artifacts":
+        if len(path.parts) < 4 or path.parts[0] != "chain-artifacts":
             continue
         # Normal RC3 artifacts live under artifacts/<network>/<category>.
         if path.parts[1] == args.network:
@@ -2304,7 +2304,7 @@ def command_evidence_seal(args: argparse.Namespace) -> None:
         if target.stat().st_size != expected_size or file_sha256(target) != expected_hash:
             raise RC3Error(f"evidence manifest hash/size mismatch: {relative}")
         parts = Path(relative).parts
-        if len(parts) >= 3 and parts[0] == "chain-artifacts":
+        if len(parts) >= 4 and parts[0] == "chain-artifacts":
             if parts[1] == network:
                 derived_categories.add(parts[2])
             elif len(parts) >= 4 and parts[2] == network:
