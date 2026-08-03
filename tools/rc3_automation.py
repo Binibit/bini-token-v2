@@ -886,12 +886,29 @@ def command_timelock_deploy(args: argparse.Namespace) -> None:
     validate_safes_manifest(safes, args.network)
     governance_safe = safe_by_purpose(safes, "GOVERNANCE_SAFE")
     security_safe = safe_by_purpose(safes, "SECURITY_SAFE")
+    configured_deployer = os.environ.get("DEPLOYER_ADDRESS")
+    if selected_mode == "BROADCAST":
+        if is_local_network(args.network):
+            timelock_deployer = require_address(os.environ.get("BINI_LOCAL_DEPLOYER"), "BINI_LOCAL_DEPLOYER")
+        else:
+            account = os.environ.get("DEPLOYER_ACCOUNT")
+            if not account:
+                raise RC3Error("BROADCAST requires DEPLOYER_ACCOUNT encrypted keystore")
+            timelock_deployer = signing_account_address(account)
+        if configured_deployer and require_address(configured_deployer, "DEPLOYER_ADDRESS").lower() != timelock_deployer.lower():
+            raise RC3Error("DEPLOYER_ADDRESS does not match the encrypted keystore signer")
+    else:
+        timelock_deployer = require_address(
+            configured_deployer or "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+            "Timelock simulation deployer",
+        )
     env = os.environ.copy()
     env.update(
         {
             "BINI_V2_EXPECTED_CHAIN_ID": str(network_chain_id(args.network)),
             "BINI_GOVERNANCE_SAFE": governance_safe,
             "BINI_SECURITY_SAFE": security_safe,
+            "BINI_TIMELOCK_DEPLOYER": timelock_deployer,
             "BINI_TIMELOCK_MIN_DELAY": str(governance["timelockMinimumDelaySeconds"]),
         }
     )
