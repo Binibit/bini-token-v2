@@ -13,19 +13,21 @@ contract DeployTimelock is Script {
         require(block.chainid != 1, "MAINNET_FORBIDDEN");
         address governanceSafe = vm.envAddress("BINI_GOVERNANCE_SAFE");
         address securitySafe = vm.envAddress("BINI_SECURITY_SAFE");
+        address deployer = vm.envAddress("BINI_TIMELOCK_DEPLOYER");
         uint256 minimumDelay = vm.envUint("BINI_TIMELOCK_MIN_DELAY");
         require(governanceSafe.code.length > 0 && securitySafe.code.length > 0, "SAFE_NOT_DEPLOYED");
+        require(deployer != address(0), "ZERO_DEPLOYER");
         require(minimumDelay > 0, "ZERO_DELAY");
 
         address[] memory noProposers = new address[](0);
         address[] memory executors = new address[](1);
         executors[0] = governanceSafe;
 
-        vm.startBroadcast();
-        timelock = new TimelockController(minimumDelay, noProposers, executors, msg.sender);
+        vm.startBroadcast(deployer);
+        timelock = new TimelockController(minimumDelay, noProposers, executors, deployer);
         timelock.grantRole(timelock.PROPOSER_ROLE(), governanceSafe);
         timelock.grantRole(timelock.CANCELLER_ROLE(), securitySafe);
-        timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), msg.sender);
+        timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), deployer);
         vm.stopBroadcast();
 
         require(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)), "NOT_SELF_ADMIN");
@@ -33,6 +35,6 @@ contract DeployTimelock is Script {
         require(timelock.hasRole(timelock.EXECUTOR_ROLE(), governanceSafe), "BAD_EXECUTOR");
         require(timelock.hasRole(timelock.CANCELLER_ROLE(), securitySafe), "BAD_CANCELLER");
         require(!timelock.hasRole(timelock.CANCELLER_ROLE(), governanceSafe), "PROPOSER_IS_CANCELLER");
-        require(!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), msg.sender), "DEPLOYER_ADMIN");
+        require(!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), deployer), "DEPLOYER_ADMIN");
     }
 }
