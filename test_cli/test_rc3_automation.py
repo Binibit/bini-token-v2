@@ -390,6 +390,12 @@ class RC3AutomationTest(unittest.TestCase):
         with self.assertRaisesRegex(rc3.RC3Error, "removed from Mainnet"):
             rc3.command_migration_vault_deploy(Namespace(network="mainnet", migration_config="missing.json", mode="PLAN"))
 
+    def test_nested_rc3b_evidence_category_is_recognized(self):
+        self.assertEqual(
+            rc3.evidence_categories("chain-artifacts/sepolia/rc3b/bootstrap/governance.json", "sepolia"),
+            {"bootstrap"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

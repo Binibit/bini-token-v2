@@ -2283,6 +2283,25 @@ def embedded_source_commits(value: Any) -> set[str]:
     return commits
 
 
+def evidence_categories(relative: str, network: str) -> set[str]:
+    parts = Path(relative).parts
+    if len(parts) < 4 or parts[0] != "chain-artifacts":
+        return set()
+    required = set(rc3_required_categories())
+    if parts[1] == network:
+        return set(parts[2:-1]) & required
+    if parts[2] == network:
+        aliases = {
+            "deployments": "token",
+            "distributions": "distributions",
+            "migrations": "migration",
+            "verification": "open-market",
+        }
+        category = aliases.get(parts[1])
+        return {category} if category else set()
+    return set()
+
+
 def command_evidence_export(args: argparse.Namespace) -> None:
     network_chain_id(args.network)
     output = repo_path(args.output, "evidence output")
@@ -2323,24 +2342,7 @@ def command_evidence_export(args: argparse.Namespace) -> None:
             files.append({"path": str(relative), "sha256": file_sha256(destination), "size": destination.stat().st_size})
     present: set[str] = set()
     for item in files:
-        path = Path(item["path"])
-        if len(path.parts) < 4 or path.parts[0] != "chain-artifacts":
-            continue
-        # Normal RC3 artifacts live under artifacts/<network>/<category>.
-        if path.parts[1] == args.network:
-            present.add(path.parts[2])
-        # Existing stable outputs use artifacts/{deployments,distributions,
-        # migrations,verification}/<network>; translate those roots into the
-        # evidence taxonomy instead of accidentally reporting the network.
-        elif len(path.parts) >= 4 and path.parts[2] == args.network:
-            aliases = {
-                "deployments": "token",
-                "distributions": "distributions",
-                "migrations": "migration",
-                "verification": "open-market",
-            }
-            if path.parts[1] in aliases:
-                present.add(aliases[path.parts[1]])
+        present.update(evidence_categories(item["path"], args.network))
     controller_commit = run(["git", "rev-parse", "HEAD"])
     artifact_source_commits = {controller_commit}
     for item in files:
@@ -2432,14 +2434,7 @@ def command_evidence_seal(args: argparse.Namespace) -> None:
             raise RC3Error(f"evidence payload is missing or unsafe: {relative}")
         if target.stat().st_size != expected_size or file_sha256(target) != expected_hash:
             raise RC3Error(f"evidence manifest hash/size mismatch: {relative}")
-        parts = Path(relative).parts
-        if len(parts) >= 4 and parts[0] == "chain-artifacts":
-            if parts[1] == network:
-                derived_categories.add(parts[2])
-            elif len(parts) >= 4 and parts[2] == network:
-                aliases = {"deployments": "token", "distributions": "distributions", "migrations": "migration", "verification": "open-market"}
-                if parts[1] in aliases:
-                    derived_categories.add(aliases[parts[1]])
+        derived_categories.update(evidence_categories(relative, network))
         if target.suffix == ".json":
             try:
                 payload = json.loads(target.read_text(encoding="utf-8"))
