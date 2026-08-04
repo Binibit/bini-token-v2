@@ -2173,11 +2173,24 @@ def command_verify_source(args: argparse.Namespace) -> None:
     if args.network != "sepolia":
         raise RC3Error("explorer verification is Sepolia-only")
     deployment = load_json(args.deployment)
-    require_artifact_source(deployment, "token deployment manifest")
+    verifier = getattr(args, "verifier", "etherscan")
+    if verifier == "sourcify":
+        recorded_commit = deployment.get("gitCommit")
+        if not isinstance(recorded_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", recorded_commit):
+            raise RC3Error("deployment manifest gitCommit is invalid")
+        run(["git", "merge-base", "--is-ancestor", recorded_commit, "HEAD"])
+        if run(["forge", "inspect", "BiniTokenV2", "bytecode"], capture=True) == "":
+            raise RC3Error("current BiniTokenV2 creation bytecode is empty")
+        current_creation_hash = run(["cast", "keccak", run(["forge", "inspect", "BiniTokenV2", "bytecode"])])
+        current_runtime_hash = run(["cast", "keccak", run(["forge", "inspect", "BiniTokenV2", "deployedBytecode"])])
+        if current_creation_hash.lower() != str(deployment.get("creationBytecodeHash", "")).lower() or current_runtime_hash.lower() != str(deployment.get("buildRuntimeBytecodeHash", "")).lower():
+            raise RC3Error("current token bytecode differs from the protected deployment build")
+    else:
+        require_artifact_source(deployment, "token deployment manifest")
     if strict_int(deployment.get("chainId"), "deployment chain") != SEPOLIA_CHAIN_ID:
         raise RC3Error("deployment manifest is not Sepolia")
-    api_key = os.environ.get("ETHERSCAN_API_KEY")
-    if not api_key:
+    api_key = os.environ.get("ETHERSCAN_API_KEY", "")
+    if verifier == "etherscan" and not api_key:
         raise RC3Error("missing ETHERSCAN_API_KEY")
     targets: list[dict[str, str]] = []
     if deployment.get("implementation"):
@@ -2199,7 +2212,10 @@ def command_verify_source(args: argparse.Namespace) -> None:
     constructor_arguments = deployment.get("constructorArguments", {})
     results = []
     for target in targets:
-        command = ["forge", "verify-contract", "--watch", "--chain", "sepolia", target["address"], target["contract"]]
+        command = ["forge", "verify-contract", "--watch", "--chain", "sepolia"]
+        if verifier == "sourcify":
+            command.extend(["--verifier", "sourcify", "--rpc-url", rpc_url("sepolia")])
+        command.extend([target["address"], target["contract"]])
         encoded = constructor_arguments.get(target["kind"]) if isinstance(constructor_arguments, dict) else None
         if encoded:
             command.extend(["--constructor-args", encoded])
@@ -2214,7 +2230,8 @@ def command_verify_source(args: argparse.Namespace) -> None:
         except RC3Error as exc:
             response = str(exc)
             status = "FAILED"
-        response = response.replace(api_key, "[REDACTED]")
+        if api_key:
+            response = response.replace(api_key, "[REDACTED]")
         results.append({**target, "status": status, "response": response})
     if not targets or any(item["status"] != "VERIFIED" for item in results):
         raise RC3Error("one or more explorer source verifications failed")
@@ -2635,6 +2652,7 @@ def add_subcommands(commands: argparse._SubParsersAction[argparse.ArgumentParser
     verify_source = commands.add_parser("verify-source")
     verify_source.add_argument("--network", required=True)
     verify_source.add_argument("--deployment", required=True)
+    verify_source.add_argument("--verifier", choices=("etherscan", "sourcify"), default="etherscan")
     verify_source.set_defaults(handler=command_verify_source)
 
     pause = commands.add_parser("pause")
