@@ -278,7 +278,7 @@ class RC3AutomationTest(unittest.TestCase):
         payload.write_text("{}\n", encoding="utf-8")
         manifest = {
             "schemaVersion": "1.0", "network": "sepolia", "chainId": rc3.SEPOLIA_CHAIN_ID,
-            "sourceCommit": "a" * 40, "workingTreeClean": True, "files": [],
+            "sourceCommit": "a" * 40, "artifactSourceCommits": ["a" * 40], "workingTreeClean": True, "files": [],
             "requiredCategories": ["bootstrap"], "presentCategories": [], "createdAt": "2026-08-03T00:00:00+00:00",
         }
         (evidence / "RC3_EVIDENCE_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")

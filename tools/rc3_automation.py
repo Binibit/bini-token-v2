@@ -2247,6 +2247,25 @@ def rc3_required_categories() -> tuple[str, ...]:
     )
 
 
+def embedded_source_commits(value: Any) -> set[str]:
+    """Collect explicitly embedded Git provenance from a JSON artifact."""
+    commits: set[str] = set()
+    stack = [value]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            for key, item in current.items():
+                if key in {"sourceCommit", "gitCommit"}:
+                    if not isinstance(item, str) or not re.fullmatch(r"[0-9a-f]{40}", item):
+                        raise RC3Error(f"invalid embedded source commit: {key}")
+                    commits.add(item)
+                else:
+                    stack.append(item)
+        elif isinstance(current, list):
+            stack.extend(current)
+    return commits
+
+
 def command_evidence_export(args: argparse.Namespace) -> None:
     network_chain_id(args.network)
     output = repo_path(args.output, "evidence output")
@@ -2305,11 +2324,23 @@ def command_evidence_export(args: argparse.Namespace) -> None:
             }
             if path.parts[1] in aliases:
                 present.add(aliases[path.parts[1]])
+    controller_commit = run(["git", "rev-parse", "HEAD"])
+    artifact_source_commits = {controller_commit}
+    for item in files:
+        payload_path = output / item["path"]
+        if payload_path.suffix != ".json":
+            continue
+        try:
+            payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RC3Error(f"invalid JSON evidence payload: {item['path']}") from exc
+        artifact_source_commits.update(embedded_source_commits(payload))
     manifest = {
         "schemaVersion": "1.0",
         "network": args.network,
         "chainId": network_chain_id(args.network),
-        "sourceCommit": run(["git", "rev-parse", "HEAD"]),
+        "sourceCommit": controller_commit,
+        "artifactSourceCommits": sorted(artifact_source_commits),
         "workingTreeClean": run(["git", "status", "--porcelain"]) == "",
         "files": sorted(files, key=lambda item: item["path"]),
         "requiredCategories": list(rc3_required_categories()),
@@ -2337,14 +2368,24 @@ def command_evidence_seal(args: argparse.Namespace) -> None:
     manifest = load_json(manifest_path)
     require_exact_fields(
         manifest,
-        {"schemaVersion", "network", "chainId", "sourceCommit", "workingTreeClean", "files", "requiredCategories", "presentCategories", "createdAt"},
+        {"schemaVersion", "network", "chainId", "sourceCommit", "artifactSourceCommits", "workingTreeClean", "files", "requiredCategories", "presentCategories", "createdAt"},
         "RC3 evidence manifest",
-        {"schemaVersion", "network", "chainId", "sourceCommit", "workingTreeClean", "files", "requiredCategories", "presentCategories", "createdAt"},
+        {"schemaVersion", "network", "chainId", "sourceCommit", "artifactSourceCommits", "workingTreeClean", "files", "requiredCategories", "presentCategories", "createdAt"},
     )
     if manifest["sourceCommit"] != current_commit():
         raise RC3Error("RC3 evidence source commit mismatch")
     if manifest["workingTreeClean"] is not True:
         raise RC3Error("RC3 evidence was generated from a dirty working tree")
+    artifact_source_commits = manifest["artifactSourceCommits"]
+    if (
+        not isinstance(artifact_source_commits, list)
+        or not artifact_source_commits
+        or artifact_source_commits != sorted(set(artifact_source_commits))
+        or any(not isinstance(item, str) or not re.fullmatch(r"[0-9a-f]{40}", item) for item in artifact_source_commits)
+        or manifest["sourceCommit"] not in artifact_source_commits
+    ):
+        raise RC3Error("RC3 evidence artifactSourceCommits is invalid or incomplete")
+    allowed_source_commits = set(artifact_source_commits)
     network = manifest["network"]
     if strict_int(manifest["chainId"], "evidence chain") != network_chain_id(network):
         raise RC3Error("RC3 evidence network/chain mismatch")
@@ -2387,16 +2428,9 @@ def command_evidence_seal(args: argparse.Namespace) -> None:
                 payload = json.loads(target.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
                 raise RC3Error(f"invalid JSON evidence payload: {relative}") from exc
-            stack = [payload]
-            while stack:
-                value = stack.pop()
-                if isinstance(value, dict):
-                    for key in ("sourceCommit", "gitCommit"):
-                        if key in value and value[key] != manifest["sourceCommit"]:
-                            raise RC3Error(f"mixed-SHA evidence payload: {relative}:{key}")
-                    stack.extend(value.values())
-                elif isinstance(value, list):
-                    stack.extend(value)
+            undeclared_commits = embedded_source_commits(payload) - allowed_source_commits
+            if undeclared_commits:
+                raise RC3Error(f"undeclared source commit in evidence payload: {relative}:{sorted(undeclared_commits)}")
     actual_payloads = {
         path.relative_to(manifest_root).as_posix()
         for path in manifest_root.rglob("*")
