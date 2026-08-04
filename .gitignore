@@ -13,3 +13,8 @@ __pycache__/
 lcov.info
 coverage-summary.json
 .DS_Store
+
+# Local workbook QA renders/inspection dumps; final .xlsx artifacts stay trackable.
+outputs/**/*.png
+outputs/**/*.inspect.ndjson
+outputs/**/inspection.ndjson
