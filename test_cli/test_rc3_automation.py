@@ -375,6 +375,21 @@ class RC3AutomationTest(unittest.TestCase):
             rc3.command_verify_source(Namespace(network="sepolia", deployment=str(deployment)))
         self.assertFalse(any("SENSITIVE_SENTINEL" in command for command in commands))
 
+    def test_repeated_unpause_cycles_use_distinct_review_references(self):
+        timelock = {
+            "address": ADDR[0], "proposer": ADDR[1], "canceller": ADDR[2],
+            "executor": ADDR[1], "minimumDelaySeconds": 600,
+        }
+        calldata = rc3.run(["cast", "calldata", "unpause()"])
+        first = rc3.new_timelock_operation("sepolia", timelock, ADDR[3], calldata, "Unpause BINI V2", salt_source="governance-safe-nonce:10")
+        second = rc3.new_timelock_operation("sepolia", timelock, ADDR[3], calldata, "Unpause BINI V2", salt_source="governance-safe-nonce:11")
+        self.assertNotEqual(first["salt"], second["salt"])
+        self.assertNotEqual(first["operationId"], second["operationId"])
+
+    def test_migration_vault_mainnet_path_is_fail_closed(self):
+        with self.assertRaisesRegex(rc3.RC3Error, "removed from Mainnet"):
+            rc3.command_migration_vault_deploy(Namespace(network="mainnet", migration_config="missing.json", mode="PLAN"))
+
 
 if __name__ == "__main__":
     unittest.main()

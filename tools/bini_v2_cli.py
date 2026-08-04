@@ -23,6 +23,7 @@ TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 import rc3_automation
+import holder_distribution
 
 ROOT = Path(__file__).resolve().parents[1]
 TOTAL_SUPPLY_RAW = 1_000_000_000 * 10**18
@@ -1317,6 +1318,8 @@ def migration_actions(context: Context, rows: list[dict[str, str]], source_hash:
 
 def command_migration_plan(args: argparse.Namespace) -> None:
     context = load_context(args)
+    if context.network == "mainnet":
+        raise ReleaseError("Migration Vault workflow is TESTNET_PROTOTYPE_ONLY; production uses direct Safe distribution")
     _, migration = load_phase_document(args, "migration_config", "migration")
     validate_migration_config(migration, context)
     holders_path = Path(args.holders)
@@ -1414,6 +1417,8 @@ def command_migration_plan(args: argparse.Namespace) -> None:
 
 def command_migrate(args: argparse.Namespace) -> None:
     context = load_context(args)
+    if context.network == "mainnet":
+        raise ReleaseError("holder-initiated Migration Vault flow is removed from Mainnet launch scope")
     _, migration = load_phase_document(args, "migration_config", "migration")
     validate_migration_config(migration, context)
     holders_path = Path(args.holders)
@@ -1596,6 +1601,8 @@ def command_verify(args: argparse.Namespace) -> None:
 
 def command_verify_migration(args: argparse.Namespace) -> None:
     context = load_context(args)
+    if context.network == "mainnet":
+        raise ReleaseError("Migration Vault evidence is a testnet/research appendix only")
     _, migration = load_phase_document(args, "migration_config", "migration")
     validate_migration_config(migration, context)
     if migration.get("illustrativeInputs") is not False:
@@ -1698,6 +1705,7 @@ def parser() -> argparse.ArgumentParser:
     status = common("status")
     status.add_argument("--full", action="store_true")
     status.set_defaults(handler=command_status)
+    holder_distribution.add_subcommands(commands)
     rc3_automation.add_subcommands(commands)
     return root
 

@@ -1,0 +1,63 @@
+{
+  "manifestVersion": "sepolia-disposable-example-v1",
+  "network": "sepolia",
+  "chainId": "11155111",
+  "snapshotBlock": "11416391",
+  "snapshotBlockHash": "0x4d9b08790c0419be1696ccfb8de5689f418a61f9e74b06d88781664b8d8142ff",
+  "sourceAllocationId": "rewards-year-1",
+  "sourceSafe": "0x2dc20fc8402f44b892281d35d491990e3fb53947",
+  "tokenProxy": "0xde486a7480fe33dbc3fdfb66ac98f371b5d4393a",
+  "conversionRule": "v2RawAmount = v1RawAmount * 1000000 (12->18 decimals)",
+  "recipientCount": "3",
+  "totalAmountRaw": "6000000",
+  "batchSizeLimit": "20",
+  "manifestHash": "sha256:d341d29bea1e1d0cd520cc3b5ba9c382679a5b670c4ee88ef24c6a439c490ce1",
+  "ownerApprovalReference": "EXAMPLE_ONLY_NOT_APPROVED_NOT_FOR_EXECUTION",
+  "records": [
+    {
+      "holderId": "fixture-holder-001",
+      "legacyV1Address": "0x1000000000000000000000000000000000000001",
+      "destinationAddress": "0x1000000000000000000000000000000000000001",
+      "v1RawAmount": "1",
+      "v2RawAmount": "1000000",
+      "sourceAllocationId": "rewards-year-1",
+      "sourceSafe": "0x2dc20fc8402f44b892281d35d491990e3fb53947",
+      "proofType": "DISPOSABLE_SEPOLIA_FIXTURE",
+      "addressOverride": false,
+      "addressOverrideProofHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "batch": "1",
+      "indexInBatch": "1",
+      "status": "PLANNED"
+    },
+    {
+      "holderId": "fixture-holder-002",
+      "legacyV1Address": "0x1000000000000000000000000000000000000002",
+      "destinationAddress": "0x1000000000000000000000000000000000000002",
+      "v1RawAmount": "2",
+      "v2RawAmount": "2000000",
+      "sourceAllocationId": "rewards-year-1",
+      "sourceSafe": "0x2dc20fc8402f44b892281d35d491990e3fb53947",
+      "proofType": "DISPOSABLE_SEPOLIA_FIXTURE",
+      "addressOverride": false,
+      "addressOverrideProofHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "batch": "1",
+      "indexInBatch": "2",
+      "status": "PLANNED"
+    },
+    {
+      "holderId": "fixture-holder-003",
+      "legacyV1Address": "0x1000000000000000000000000000000000000003",
+      "destinationAddress": "0x1000000000000000000000000000000000000003",
+      "v1RawAmount": "3",
+      "v2RawAmount": "3000000",
+      "sourceAllocationId": "rewards-year-1",
+      "sourceSafe": "0x2dc20fc8402f44b892281d35d491990e3fb53947",
+      "proofType": "DISPOSABLE_SEPOLIA_FIXTURE",
+      "addressOverride": false,
+      "addressOverrideProofHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "batch": "1",
+      "indexInBatch": "3",
+      "status": "PLANNED"
+    }
+  ]
+}

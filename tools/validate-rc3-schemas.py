@@ -52,6 +52,8 @@ def schema_for(path: Path, value: dict[str, Any]) -> str | None:
         return "open-market-verification-receipt.schema.json"
     if value.get("network") == "sepolia" and {"deployment", "results", "verifiedAt"} <= keys:
         return "source-verification-receipt.schema.json"
+    if {"manifestVersion", "manifestHash", "sourceAllocationId", "sourceSafe", "records"} <= keys:
+        return "direct-holder-distribution.schema.json"
     return None
 
 

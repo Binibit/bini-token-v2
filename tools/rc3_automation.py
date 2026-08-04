@@ -1763,7 +1763,19 @@ def command_unpause_plan(args: argparse.Namespace) -> None:
     deployment = default_deployment(args.network)
     timelock = default_timelock(args.network)
     token = token_address(deployment)
-    operation = new_timelock_operation(args.network, timelock, token, run(["cast", "calldata", "unpause()"]), "Unpause BINI V2")
+    salt_reference = getattr(args, "salt_reference", None)
+    if not salt_reference:
+        rpc = rpc_url(args.network)
+        nonce = strict_int(cast_call(rpc, timelock["proposer"], "nonce()(uint256)"), "Governance Safe nonce")
+        salt_reference = f"governance-safe-nonce:{nonce}"
+    operation = new_timelock_operation(
+        args.network,
+        timelock,
+        token,
+        run(["cast", "calldata", "unpause()"]),
+        "Unpause BINI V2",
+        salt_source=f"BINI_RC3:{args.network}:Unpause BINI V2:{salt_reference}",
+    )
     operation_path = versioned_artifact(args.network, "timelock-operations", "unpause-operation", operation)
     package = timelock_package_for_action(operation, "schedule")
     package_path = versioned_artifact(args.network, "unpause", "unpause-schedule", package)
@@ -1800,6 +1812,8 @@ def deployment_from_receipt(receipt_path: Path, contract_name: str, network: str
 
 
 def command_migration_fixture_deploy(args: argparse.Namespace) -> None:
+    if args.network == "mainnet":
+        raise RC3Error("Migration Vault workflow is TESTNET_PROTOTYPE_ONLY and forbidden on Mainnet")
     selected_mode = mode(args)
     if selected_mode not in {"PLAN", "SIMULATE", "BROADCAST"}:
         raise RC3Error("migration fixture deploy supports PLAN, SIMULATE or BROADCAST")
@@ -1835,6 +1849,8 @@ def command_migration_fixture_deploy(args: argparse.Namespace) -> None:
 
 
 def command_migration_vault_deploy(args: argparse.Namespace) -> None:
+    if args.network == "mainnet":
+        raise RC3Error("BiniMigrationVault is removed from Mainnet launch scope")
     selected_mode = mode(args)
     if selected_mode not in {"PLAN", "SIMULATE", "BROADCAST"}:
         raise RC3Error("migration vault deploy supports PLAN, SIMULATE or BROADCAST")
@@ -1886,6 +1902,8 @@ def load_holders_csv(path: str | Path) -> list[dict[str, str]]:
 
 
 def command_migration_fund_plan(args: argparse.Namespace) -> None:
+    if args.network == "mainnet":
+        raise RC3Error("Migration Vault funding is removed from Mainnet launch scope")
     rows = load_holders_csv(args.holders)
     vault = load_json(ROOT / "artifacts" / args.network / "migration" / "vault.json")
     v2 = require_address(vault["v2Token"], "vault V2 token")
@@ -1907,6 +1925,8 @@ def command_migration_fund_plan(args: argparse.Namespace) -> None:
 
 
 def command_migration_fund_verify(args: argparse.Namespace) -> None:
+    if args.network == "mainnet":
+        raise RC3Error("Migration Vault verification is testnet/research only")
     rpc = rpc_url(args.network)
     plan = load_json(args.plan)
     require_exact_fields(plan, {"schemaVersion", "network", "chainId", "vault", "fundingSources", "totalRaw", "createdAt"}, "migration funding plan", {"schemaVersion", "network", "chainId", "vault", "fundingSources", "totalRaw", "createdAt"})
@@ -2597,6 +2617,7 @@ def add_subcommands(commands: argparse._SubParsersAction[argparse.ArgumentParser
     unpause_sub = unpause.add_subparsers(dest="unpause_command", required=True)
     unpause_plan = unpause_sub.add_parser("plan")
     unpause_plan.add_argument("--network", required=True)
+    unpause_plan.add_argument("--salt-reference", help="unique reviewed operation reference; defaults to current Governance Safe nonce")
     unpause_plan.set_defaults(handler=command_unpause_plan)
     unpause_verify = unpause_sub.add_parser("verify")
     unpause_verify.add_argument("--network", required=True)
